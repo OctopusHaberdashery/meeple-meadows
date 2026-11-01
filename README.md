@@ -12,6 +12,8 @@ Grand Harvest Fair.
 - Seasons rotate every 2 hours of play. Crops grow only in their seasons and rest otherwise;
   each plot can hold a per-season plan and switches automatically.
 - Stone Wells (optional) let Meeples fill watering cans. Watered soil grows 60% faster for 3 harvests.
+- Crops follow real growth habits: roots and grains are harvested once and replanted, vines and leafy
+  greens give several harvests, and trees and bushes keep producing forever.
 - The Greenhouse (late game, level 25) grows any crop in any season. Tap it to lift the roof.
 
 ## Install on your tablet
@@ -48,8 +50,8 @@ Bump the version when installing over an older copy, e.g. `VERSION_CODE=3 VERSIO
 
 ## Pacing
 
-An autoplay bot that plays efficiently reached the final Fair after ~81 hours of
-in-game time (v1.1). A human player will likely take longer. Set `PACE` in `web/js/data.js`
+An autoplay bot that plays efficiently reached the final Fair after ~79 hours of
+in-game time (v1.3). A human player will likely take longer. Set `PACE` in `web/js/data.js`
 to stretch or shrink the curve (e.g. `1.5` = 50% more produce per goal).
 
 You can test in a desktop browser by serving `web/` (e.g. `python -m http.server`);

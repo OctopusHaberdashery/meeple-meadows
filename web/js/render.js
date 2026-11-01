@@ -255,6 +255,7 @@ R.onEvent = function (e) {
       for (let k = 0; k < 8 * pq; k++) addPart({ type: 'chip', x, y: y - 6, vx: (Math.random() - 0.5) * 80, vy: -50 - Math.random() * 60, g: 260, max: 0.6, col: CROP[e.crop].leaf, size: 2, vr: 8 });
       AUDIO.sfx('pop'); break;
     }
+    case 'spent': { const { x, y } = tileC(e.i); for (let k = 0; k < 6 * pq; k++) addPart({ type: 'chip', x, y, vx: (Math.random() - 0.5) * 60, vy: -30 - Math.random() * 30, g: 200, max: 0.6, col: '#a8884a', size: 2 }); break; }
     case 'plant': { const { x, y } = tileC(e.i); for (let k = 0; k < 5 * pq; k++) addPart({ type: 'chip', x, y, vx: (Math.random() - 0.5) * 50, vy: -30 - Math.random() * 30, g: 200, max: 0.5, col: '#7a5232', size: 1.8 }); break; }
     case 'water': { const { x, y } = tileC(e.i); for (let k = 0; k < 12 * pq + 3; k++) addPart({ type: 'drop', x: x + (Math.random() - 0.5) * 30, y: y - 18 - Math.random() * 6, vx: (Math.random() - 0.5) * 30, vy: 10 + Math.random() * 20, g: 300, max: 0.45, size: 1.4 }); AUDIO.sfx('water'); break; }
     case 'fill': for (let k = 0; k < 8 * pq + 2; k++) addPart({ type: 'drop', x: e.x + (Math.random() - 0.5) * 10, y: e.y - 20, vx: (Math.random() - 0.5) * 60, vy: -60 - Math.random() * 40, g: 300, max: 0.6, size: 1.6 }); AUDIO.sfx('splash'); break;
@@ -440,8 +441,9 @@ function drawPlot(ctx, i, t, wind, sway) {
   const x = (i % MW) * T + T / 2, y = ((i / MW) | 0) * T + T / 2;
   const live = plotInSeason(p);
   if (p.st === 0) { ctx.globalAlpha = live ? 0.75 : 0.35; drawSprite(ctx, ART.icons[p.crop], x - 8, y - 8, 0.5); ctx.globalAlpha = 1; return; }
-  const f = p.t / CROP[p.crop].grow;
-  const stage = p.st === 2 ? 3 : (f < 0.15 ? 0 : f < 0.35 ? 1 : 2);
+  const f = p.t / growTarget(p);
+  // a living plant regrowing its next harvest stays full-sized rather than restarting as a seedling
+  const stage = p.st === 2 ? 3 : (p.gen | 0) > 0 ? 2 : (f < 0.15 ? 0 : f < 0.35 ? 1 : 2);
   const s = plantSprite(p.crop, stage);
   if (!live) ctx.globalAlpha = 0.55;
   if (sway && live && stage >= 2) {

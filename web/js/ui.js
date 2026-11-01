@@ -227,8 +227,14 @@ function liveVal(k) {
     case 'coins': return fmt(S.coins);
     case 'inv': return fmt(S.inv[b] || 0);
     case 'life': return fmt(S.lifetime[b] || 0);
-    case 'plot': { const p = S.plots[b]; return p ? (p.st === 2 ? 1 : p.st === 0 ? 0 : p.t / CROP[p.crop].grow) : 0; }
-    case 'plott': { const p = S.plots[b]; if (!p) return ''; if (p.st === 2) return 'Ripe! Waiting for a Meeple'; if (!plotInSeason(p)) return 'Dormant — ' + CROP[p.crop].name + ' grows in ' + CROP[p.crop].sea.map(x => SEASONS[x].name).join(', '); if (p.st === 0) return 'Waiting to be planted'; return (p.wet ? '💧 Moist for ' + (p.wet | 0) + ' harvest' + ((p.wet | 0) > 1 ? 's' : '') + ' · ' : (hasWell() ? 'Thirsty · ' : '')) + 'Ready in ' + fmtTime((CROP[p.crop].grow - p.t) / growMult(p)); }
+    case 'plot': { const p = S.plots[b]; return p ? (p.st === 2 ? 1 : p.st === 0 ? 0 : p.t / growTarget(p)) : 0; }
+    case 'plott': { const p = S.plots[b]; if (!p) return ''; if (p.st === 2) return 'Ripe! Waiting for a Meeple'; if (!plotInSeason(p)) return 'Dormant — ' + CROP[p.crop].name + ' grows in ' + CROP[p.crop].sea.map(x => SEASONS[x].name).join(', '); if (p.st === 0) return 'Waiting to be planted'; return (p.wet ? '💧 Moist for ' + (p.wet | 0) + ' harvest' + ((p.wet | 0) > 1 ? 's' : '') + ' · ' : (hasWell() ? 'Thirsty · ' : '')) + ((p.gen | 0) > 0 ? 'Regrowing · ' : '') + 'Ready in ' + fmtTime((growTarget(p) - p.t) / growMult(p)); }
+    case 'plotlife': {
+      const p = S.plots[b]; if (!p) return ''; const c = CROP[p.crop];
+      if (c.harvests === 0) return '🌳 Perennial: keeps producing, regrows in ' + fmtTime(c.regrow) + ' after each harvest';
+      if (c.harvests === 1) return '🌱 One harvest, then a Meeple replants it from seed';
+      return '🔁 Harvest ' + Math.min(c.harvests, (p.gen | 0) + 1) + ' of ' + c.harvests + ' · regrows in ' + fmtTime(c.regrow) + ', then needs replanting';
+    }
     case 'bp': { const x = BMAP[b]; if (!x || !x.recipe) return 0; const r = RECIPE[x.recipe]; if (x.phase === 'work') return x.t / r.t; if (x.phase === 'done') return 1; let h = 0, n = 0; for (const q in r.in) { n += r.in[q]; h += Math.min(r.in[q], x.got[q] || 0); } return x.phase === 'gather' ? h / n : 0; }
     case 'bs': return procStatus(BMAP[b]);
     case 'got': { const [bid, item] = b.split('/'); const x = BMAP[bid]; return x ? String(x.got[item] || 0) : '0'; }
@@ -300,7 +306,7 @@ PANELS.plot = {
   body: p => {
     const pl = S.plots[p.id], cr = CROP[pl.crop], now = seasonIdx();
     if (p.sea == null) p.sea = now;
-    let h = `<div class="card"><div class="row">${iconImg(pl.crop, 'xl')}<div class="grow"><div class="t">${cr.name} ${seaDots(pl.crop)}</div><div class="s" data-live="plott:${p.id}"></div>
+    let h = `<div class="card"><div class="row">${iconImg(pl.crop, 'xl')}<div class="grow"><div class="t">${cr.name} ${seaDots(pl.crop)}</div><div class="s" data-live="plott:${p.id}"></div><div class="s" data-live="plotlife:${p.id}"></div>
       <div class="bar big" style="margin-top:.3rem"><i data-bar="plot:${p.id}"></i></div>${pl.bonus > 1 ? `<div class="s">+${Math.round((pl.bonus - 1) * 100)}% growth from nearby scarecrows</div>` : ''}</div></div></div>`;
     if (!pl.gh) {
       h += `<div class="sec">Plan by season</div><div class="seatabs">` + SEASONS.map((S2, i) => `<button class="btn sm ${p.sea === i ? 'on' : ''}" data-a="ptab" data-v="${i}">${S2.icon} ${S2.name}${i === now ? ' <small>(now)</small>' : ''}<span class="ptab-ic">${(pl.plan && pl.plan[i]) || (i === now ? pl.crop : null) ? iconImg((pl.plan && pl.plan[i]) || pl.crop, 'sm') : '—'}</span></button>`).join('') + `</div>`;
@@ -310,7 +316,7 @@ PANELS.plot = {
     for (let L = 0; L < LEVELS.length; L++) {
       const c = LEVELS[L].crop; if (!c) continue;
       const lock = L > S.level, off = !pl.gh && !CROP[c].sea.includes(p.sea);
-      h += `<div class="cell ${selected === c ? 'sel' : ''} ${lock ? 'locked' : ''} ${off && !lock ? 'off' : ''}" ${lock ? '' : `data-a="crop" data-v="${c}"`}>${lock ? '<div style="font-size:1.6rem;height:2.3rem">🔒</div>' : iconImg(c)}${lock ? 'Lv ' + (L + 1) : CROP[c].name}<div class="s">${lock ? '' : fmtTime(CROP[c].grow)}</div>${lock ? '' : seaDots(c)}</div>`;
+      h += `<div class="cell ${selected === c ? 'sel' : ''} ${lock ? 'locked' : ''} ${off && !lock ? 'off' : ''}" ${lock ? '' : `data-a="crop" data-v="${c}"`}>${lock ? '<div style="font-size:1.6rem;height:2.3rem">🔒</div>' : iconImg(c)}${lock ? 'Lv ' + (L + 1) : CROP[c].name}<div class="s">${lock ? '' : fmtTime(CROP[c].grow) + ' · ' + harvestLabel(CROP[c])}</div>${lock ? '' : seaDots(c)}</div>`;
     }
     h += `</div><div class="sec">Quick actions</div><div class="row wrap">`;
     if (pl.gh) h += `<button class="btn sm" data-a="ghall">${iconImg(pl.crop, 'sm')} Plant ${cr.name} in this whole greenhouse</button>`;
@@ -330,13 +336,14 @@ PANELS.crops = {
     const cell = (c, L) => {
       if (L > S.level) return `<div class="cell locked"><div style="font-size:1.6rem;height:2.3rem">🔒</div>Lv ${L + 1}</div>`;
       const cr = CROP[c], off = !cropInSeason(c, now);
-      return `<div class="cell ${UI.paintCrop === c ? 'sel' : ''} ${off ? 'off' : ''}" data-a="paint" data-v="${c}">${iconImg(c)}${cr.name}<div class="s">${fmtTime(cr.grow)} · ${iconImg('coin', 'sm')}${sellPrice(c)}</div>${seaDots(c)}</div>`;
+      return `<div class="cell ${UI.paintCrop === c ? 'sel' : ''} ${off ? 'off' : ''}" data-a="paint" data-v="${c}">${iconImg(c)}${cr.name}<div class="s">${fmtTime(cr.grow)} · ${iconImg('coin', 'sm')}${sellPrice(c)}</div><div class="hv" title="harvests per planting">${harvestLabel(cr)} harvest${cr.harvests === 1 ? '' : 's'}</div>${seaDots(c)}</div>`;
     };
     const all = LEVELS.map((l, L) => [l.crop, L]).filter(x => x[0]);
     const inS = all.filter(([c, L]) => L <= S.level && cropInSeason(c, now)), outS = all.filter(([c, L]) => L <= S.level && !cropInSeason(c, now)), locked = all.filter(([c, L]) => L > S.level);
     let h = `<div class="sec">${SEASONS[now].icon} In season now</div><div class="grid">${inS.map(x => cell(...x)).join('')}</div>`;
     if (outS.length) h += `<div class="sec">Out of season</div><p class="s">These rest outdoors until their season returns, but grow fine in a greenhouse.</p><div class="grid">${outS.map(x => cell(...x)).join('')}</div>`;
     if (locked.length) h += `<div class="sec">Still to unlock</div><div class="grid">${locked.map(x => cell(...x)).join('')}</div>`;
+    h += `<p class="s"><b>1×</b> crops are dug up at harvest and replanted from seed. Crops with several harvests regrow faster after the first. <b>∞</b> perennials keep producing forever.</p>`;
     h += `<p class="s">Planting also sets that plot's plan for ${SEASONS[now].name}. Tap a plot normally (outside planting mode) to plan other seasons.</p>`;
     return h;
   },
@@ -912,6 +919,7 @@ function openHelp(fromPause) {
   modal(`<h2>How to Play</h2><div style="text-align:left" class="p">
     <p>${iconImg('meeple', 'sm')} <b>Meeples</b> do the work: they plant, harvest and haul everything to the <b>storehouse</b> on their own.</p>
     <p>${iconImg('soil', 'sm')} Tap <b>Crops</b>, pick a crop, then tap or drag across plots to plant it. Tap a plot on its own to plan its crop for each season. Build more plots from <b>Build</b>.</p>
+    <p>🔁 Some crops are harvested once and replanted; vines and leafy greens give several harvests; trees and bushes (∞) keep producing.</p>
     <p>🌸 <b>Seasons</b> last 2 hours each. Crops only grow in their seasons and rest the rest of the year. The <b>Greenhouse</b> (late game) grows anything, any time.</p>
     <p>${iconImg('can', 'sm')} Build a <b>Stone Well</b> and Meeples will fill watering cans there. Watered crops grow 60% faster; rain waters them for free.</p>
     <p>${iconImg('axe', 'sm')} The meadow is overgrown. Use <b>Clear</b> (or tap a tree) to pay for clearing land next to open ground. Further out costs more.</p>

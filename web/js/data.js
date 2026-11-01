@@ -52,7 +52,34 @@ const CROPS = [
   { id: 'peach',      name: 'Peach',      grow: 440, sea: [0, 1],       col: '#f8a070', leaf: '#4b9a3c', meeple: { speed: 3.2, carry: 9,  work: 1.8, col: '#f6a478', trait: 'Lovely' } },
   { id: 'cocoa',      name: 'Cocoa',      grow: 470, sea: [1],          col: '#8a4a2a', leaf: '#3f7a3a', meeple: { speed: 3.6, carry: 10, work: 2.0, col: '#8e5232', trait: 'Rich' } },
 ];
-CROPS.forEach(c => { c.price = Math.max(2, Math.round(c.grow / 13)); c.mc = c.meeple.carry >= 12 ? 6 : 8; });
+// How many times one planting can be harvested, and how fast it regrows afterwards (fraction of
+// the first grow time), loosely based on how each crop really grows. 0 harvests = perennial (forever).
+const REGROW = {
+  // dug up or cut whole: one harvest, then the plot needs a new seed
+  carrot: [1], wheat: [1], potato: [1], parsnip: [1], cabbage: [1], sugarbeet: [1], garlic: [1],
+  barley: [1], sunflower: [1], corn: [1], flax: [1], pumpkin: [1],
+  // cut-and-come-again leaves, pick-as-they-ripen vines, short-lived berry plants
+  lettuce: [3, 0.45],     // leaf lettuce takes ~3 cuttings before bolting
+  kale: [6, 0.4],         // outer leaves picked for months
+  tomato: [8, 0.35],      // indeterminate vines fruit until frost
+  chili: [8, 0.35],
+  cucumber: [6, 0.3],     // picked every few days for several weeks
+  strawberry: [6, 0.4],   // repeat flushes; beds wear out after a few years
+  cotton: [3, 0.5],       // bolls open over two or three pickings
+  melon: [3, 0.5],        // a vine sets a few fruit
+  rice: [2, 0.6],         // a smaller "ratoon" crop regrows from the stubble
+  // perennials that produce for decades
+  apple: [0, 0.5], peach: [0, 0.5], olive: [0, 0.5], cocoa: [0, 0.4], grapes: [0, 0.5],
+  blueberry: [0, 0.5], hops: [0, 0.6], tea: [0, 0.3], cranberry: [0, 0.6], juniper: [0, 0.8], lavender: [0, 0.6],
+};
+CROPS.forEach(c => {
+  c.price = Math.max(2, Math.round(c.grow / 13)); c.mc = c.meeple.carry >= 12 ? 6 : 8;
+  const r = REGROW[c.id] || [1];
+  c.harvests = r[0];                                   // 0 = unlimited
+  c.regrow = r[0] === 1 ? c.grow : Math.round(c.grow * r[1]);
+  if (r[0] === 1) c.price = Math.round(c.price * 1.25 + 0.4); // single-harvest crops pay a bit more per harvest
+});
+const harvestLabel = c => c.harvests === 0 ? '∞' : c.harvests + '×';
 const CROP = Object.fromEntries(CROPS.map(c => [c.id, c]));
 
 // ---------------------------------------------------------------- goods

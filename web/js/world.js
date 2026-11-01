@@ -81,7 +81,7 @@ function genMap(seed) {
 // ---------------------------------------------------------------- entities
 function makePlot(i, crop, planted, gh) {
   S.floor[i] = FLOOR.PLOT;
-  S.plots[i] = { crop, t: 0, st: planted ? 1 : 0, claim: 0, wclaim: 0, wet: false, bonus: 1, plan: {} };
+  S.plots[i] = { crop, t: 0, st: planted ? 1 : 0, gen: 0, claim: 0, wclaim: 0, wet: false, bonus: 1, plan: {} };
   if (gh) S.plots[i].gh = gh;
 }
 
@@ -91,6 +91,9 @@ const seasonYear = () => Math.floor(S.playTime / (SEASON_LEN * 4)) + 1;
 const seasonLeft = () => SEASON_LEN - (S.playTime % SEASON_LEN);
 const cropInSeason = (id, sea = seasonIdx()) => CROP[id].sea.includes(sea);
 const plotInSeason = p => !!p.gh || cropInSeason(p.crop);
+// first growth uses the full grow time; regrowth on a living plant is quicker
+const growTarget = p => (p.gen | 0) > 0 ? CROP[p.crop].regrow : CROP[p.crop].grow;
+const harvestsLeft = p => { const h = CROP[p.crop].harvests; return h === 0 ? Infinity : Math.max(0, h - (p.gen | 0)); };
 function applySeasonPlans() {
   const sea = seasonIdx();
   for (const k in S.plots) { const p = S.plots[k]; if (!p.gh && p.plan && p.plan[sea] && p.plan[sea] !== p.crop) setPlotCrop(+k, p.plan[sea], true); }
@@ -333,7 +336,7 @@ function setPlotCrop(i, crop, fromPlan, planSeason) {
     if (planSeason != null && planSeason !== seasonIdx() && !p.gh) return;
   }
   if (p.crop === crop) return;
-  p.crop = crop; p.t = 0; p.st = 0;
+  p.crop = crop; p.t = 0; p.st = 0; p.gen = 0;
   for (const m of S.meeples) if (m.task && m.task.plot === i) dropTask(m);
   p.claim = 0;
 }
@@ -518,14 +521,16 @@ function arrive(m, dt) {
         let n = 1; if (Math.random() < 0.08 * upg('yield')) n = 2;
         for (let k = 0; k < n; k++) m.hand.push(p.crop);
         emit({ t: 'harvest', i: t.plot, crop: p.crop, n });
-        p.st = 1; p.t = 0; p.wet = Math.max(0, (p.wet | 0) - 1);
+        p.gen = (p.gen | 0) + 1; p.t = 0; p.wet = Math.max(0, (p.wet | 0) - 1);
+        if (CROP[p.crop].harvests && p.gen >= CROP[p.crop].harvests) { p.st = 0; p.gen = 0; emit({ t: 'spent', i: t.plot }); }
+        else p.st = 1;
         if (m.hand.length < mCarry(m)) {
           const r = bfs(tileOf(m), i => { const q = S.plots[i]; return q && q.st === 2 && !q.claim; }, 7);
           if (r) { S.plots[r.goal].claim = m.id; m.task = { type: 'harvest', plot: r.goal }; m.path = r.path; return; }
         }
         m.task = null;
       } else {
-        p.st = 1; p.t = 0; emit({ t: 'plant', i: t.plot });
+        p.st = 1; p.t = 0; p.gen = 0; emit({ t: 'plant', i: t.plot });
         m.task = null;
       }
       break;
@@ -626,7 +631,7 @@ function update(dt) {
     if (p.st === 1 && plotInSeason(p)) {
       if (raining && !p.gh && (p.wet | 0) < 3) p.wet = 3;
       p.t += dt * growMult(p);
-      if (p.t >= CROP[p.crop].grow) { p.st = 2; emit({ t: 'ripe', i: +k }); }
+      if (p.t >= growTarget(p)) { p.st = 2; emit({ t: 'ripe', i: +k }); }
     }
   }
   // processors
@@ -731,7 +736,7 @@ function loadGame(slot) {
   d.slot = slot;
   migrate(d);
   for (const m of d.meeples) { m.path = []; m.task = null; m.act = 0; m.wait = 0; m.hand = m.hand || []; m.can = m.can || 0; }
-  for (const k in d.plots) { const p = d.plots[k]; p.claim = 0; p.wclaim = 0; p.plan = p.plan || {}; }
+  for (const k in d.plots) { const p = d.plots[k]; p.claim = 0; p.wclaim = 0; p.plan = p.plan || {}; p.gen = p.gen | 0; }
   for (const b of d.buildings) if (BUILDINGS[b.type].proc) { b.transit = {}; b.claim = 0; }
   S = d;
   rebuildOcc();
