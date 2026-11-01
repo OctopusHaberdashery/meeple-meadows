@@ -200,7 +200,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
   </div>
   <div class="menu" id="mainMenu"></div>
 </div>
-<div class="ver">v1.1.2</div>
+<div class="ver">v1.1.3</div>
 
 <div id="hud" class="hidden">
   <div class="topbar">
@@ -241,6 +241,8 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
   }
   window.__bootError = function (e) { show((e && (e.stack || e.message)) || e); };
   window.addEventListener('error', function (e) { show((e.message || 'Script error') + (e.filename ? '\n' + e.filename.split('/').pop() + ':' + e.lineno : '')); });
+  // blocked/missing files don't raise normal errors; catch them in the capture phase
+  window.addEventListener('error', function (e) { var t = e.target; if (t && t !== window && (t.src || t.href)) show('Could not load file: ' + (t.src || t.href)); }, true);
   window.addEventListener('unhandledrejection', function (e) { show(e.reason && (e.reason.stack || e.reason.message) || e.reason); });
   setTimeout(function () { if (!window.__booted) show('Still loading after 30 seconds (no error was reported).'); }, 30000);
   window.__stage = ['page start'];

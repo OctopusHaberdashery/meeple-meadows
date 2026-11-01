@@ -20,8 +20,15 @@ OUT="$HERE/build"
 rm -rf "$OUT"; mkdir -p "$OUT"/{res,gen,obj,dex,assets}
 
 echo "• assets"
-cp -r "$ROOT/web/." "$OUT/assets/"
-rm -rf "$OUT/assets/dev"
+# one self-contained page: some WebViews block local pages from loading other local files
+PY="${PYTHON:-}"
+if [ -z "$PY" ]; then
+  # skip Windows' Microsoft Store "python3" stub, which isn't a real interpreter
+  for c in /c/Users/mcnee/AppData/Local/Programs/Python/Python3*/python.exe python3 python; do
+    if "$c" -c "import sys" >/dev/null 2>&1; then PY="$c"; break; fi
+  done
+fi
+"$PY" "$HERE/bundle.py" "$ROOT/web" "$OUT/assets/index.html"
 
 echo "• resources"
 "$BT/aapt2.exe" compile --dir "$HERE/res" -o "$OUT/res.zip"

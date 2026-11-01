@@ -700,23 +700,29 @@ function serialize() {
 }
 function saveGame() {
   if (!S) return false;
+  let json;
   try {
     // items in transit go back to storage for the snapshot
     const snap = JSON.parse(serialize());
     for (const m of snap.meeples) { for (const it of m.hand) snap.inv[it] = (snap.inv[it] || 0) + 1; m.hand = []; }
     for (const b of snap.buildings) if (b.transit) b.transit = {}, b.claim = 0;
     for (const k in snap.plots) snap.plots[k].claim = 0, snap.plots[k].wclaim = 0;
-    localStorage.setItem(SAVE_KEY(S.slot), JSON.stringify(snap));
-    if (window.AndroidBridge && AndroidBridge.backup) AndroidBridge.backup(S.slot, JSON.stringify(snap));
-    return true;
+    json = JSON.stringify(snap);
   } catch (e) { console.error(e); return false; }
+  // two independent copies: the app's own file (Android) and browser storage; either one is enough
+  let ok = false;
+  try { if (window.AndroidBridge && AndroidBridge.backup) { AndroidBridge.backup(S.slot, json); ok = true; } } catch (e) { console.error(e); }
+  try { localStorage.setItem(SAVE_KEY(S.slot), json); ok = true; } catch (e) { console.error(e); }
+  return ok;
 }
 function readSlot(slot) {
-  try {
-    let raw = localStorage.getItem(SAVE_KEY(slot));
-    if (!raw && window.AndroidBridge && AndroidBridge.restore) raw = AndroidBridge.restore(slot) || null;
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) { return null; }
+  // read both copies and use whichever was saved most recently
+  const parse = raw => { try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; } };
+  let a = null, b = null;
+  try { a = parse(localStorage.getItem(SAVE_KEY(slot))); } catch (e) { }
+  try { if (window.AndroidBridge && AndroidBridge.restore) b = parse(AndroidBridge.restore(slot)); } catch (e) { }
+  if (a && b) return (b.savedAt || 0) > (a.savedAt || 0) ? b : a;
+  return a || b;
 }
 function loadGame(slot) {
   const d = readSlot(slot); if (!d) return false;
@@ -747,5 +753,8 @@ function migrate(d) {
   }
   if (d.lastSeason == null) d.lastSeason = Math.floor(d.playTime / SEASON_LEN) % 4;
 }
-function deleteSlot(slot) { try { localStorage.removeItem(SAVE_KEY(slot)); if (window.AndroidBridge && AndroidBridge.backup) AndroidBridge.backup(slot, ''); } catch (e) { } }
+function deleteSlot(slot) {
+  try { localStorage.removeItem(SAVE_KEY(slot)); } catch (e) { }
+  try { if (window.AndroidBridge && AndroidBridge.backup) AndroidBridge.backup(slot, ''); } catch (e) { }
+}
 ;(window.__stage = window.__stage || []).push('world.js loaded');
