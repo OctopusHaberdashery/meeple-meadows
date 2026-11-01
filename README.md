@@ -1,5 +1,9 @@
 # Meeple Meadows
 
+**[⬇ Download the latest APK](https://github.com/OctopusHaberdashery/meeple-meadows/releases/latest/download/MeepleMeadows.apk)** · [All releases](https://github.com/OctopusHaberdashery/meeple-meadows/releases)
+
+<img src="icon-512.png" width="128" alt="Meeple Meadows icon">
+
 A cozy idle homestead game for Android tablets. Meeples farm, water, haul and craft while you
 clear the overgrown meadow, unlock 32 seasonal crops, and chain ingredients through 12 crafting
 buildings into breads, jams, kimchi, teas, oils, quilts, beer, wine and spirits on the way to the
