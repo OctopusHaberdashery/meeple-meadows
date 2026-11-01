@@ -59,7 +59,7 @@ AUDIO.sfx = function (name) {
   if (!AUDIO.started || AUDIO.ctx.state !== 'running') return;
   const c = AUDIO.ctx, t = c.currentTime, d = AUDIO.sfxBus;
   // rate-limit repeats so a busy farm doesn't become a wall of noise
-  const lim = { pop: 0.07, drop: 0.12, coin: 0.15, chop: 0.05, ding: 0.2 }[name] || 0.03;
+  const lim = { pop: 0.07, drop: 0.12, coin: 0.15, chop: 0.05, ding: 0.2, water: 0.35, splash: 0.25 }[name] || 0.03;
   if (AUDIO.lastSfx[name] && t - AUDIO.lastSfx[name] < lim) return;
   AUDIO.lastSfx[name] = t;
   switch (name) {
@@ -75,8 +75,17 @@ AUDIO.sfx = function (name) {
     case 'ding': tone(d, 'sine', 1568, 1568, t, 0.5, 0.12); tone(d, 'sine', 2093, 2093, t + 0.04, 0.4, 0.06); break;
     case 'meeple': [523, 659, 784, 1047].forEach((f, i) => tone(d, 'triangle', f, f * 1.01, t + i * 0.08, 0.3, 0.12)); break;
     case 'level': [523, 659, 784, 1047, 1319].forEach((f, i) => { tone(d, 'triangle', f, f, t + i * 0.11, 0.5, 0.14); tone(d, 'sine', f / 2, f / 2, t + i * 0.11, 0.6, 0.08); }); break;
-    case 'water': noise(d, t, 0.25, 0.08, 2600, 0.8, 'highpass'); break;
-    case 'splash': noise(d, t, 0.3, 0.14, 1200, 0.9); tone(d, 'sine', 600, 300, t, 0.15, 0.06); break;
+    case 'water': {
+      // soft drips: short sine "plinks" that rise in pitch, like drops landing in a puddle
+      const n = 2 + (Math.random() * 2 | 0);
+      for (let k = 0; k < n; k++) {
+        const at = t + k * (0.09 + Math.random() * 0.12), f = 700 + Math.random() * 500;
+        tone(d, 'sine', f, f * 1.9, at, 0.07, 0.07, 0.004, 3000);
+        tone(d, 'sine', f * 0.5, f * 0.8, at + 0.01, 0.12, 0.025, 0.01, 1200);
+      }
+      break;
+    }
+    case 'splash': noise(d, t, 0.35, 0.07, 900, 0.7, 'lowpass'); tone(d, 'sine', 420, 900, t, 0.09, 0.05, 0.005, 2000); tone(d, 'sine', 600, 1300, t + 0.12, 0.08, 0.035, 0.005, 2000); break;
     case 'error': tone(d, 'square', 220, 180, t, 0.15, 0.06, 0.005, 1000); break;
     case 'buy': tone(d, 'triangle', 660, 990, t, 0.15, 0.15); tone(d, 'sine', 1320, 1320, t + 0.08, 0.25, 0.08); break;
   }

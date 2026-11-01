@@ -322,7 +322,7 @@ function iconSack(g, o) {
   g.beginPath(); g.moveTo(-6, -8); g.lineTo(6, -8); stroke(g, '#8a6a3a', 1.6);
   ell(g, 0, 2, 4.5, 4.5, o.l, INK, 0.6);
 }
-function iconBowl(g, o) {
+var iconBowl = function (g, o) {
   g.translate(16, 16);
   ell(g, 0, -1, 12, 4.5, shade(o.c, -0.1));
   ell(g, 0, -1.5, 11, 3.8, rgrad(g, 0, -1.5, 11, [shade(o.c, 0.35), o.c]));
@@ -890,7 +890,7 @@ function buildingSprite(type) {
 // ---------------------------------------------------------------- init
 function buildArt() {
   ART.sprites = {}; ART.icons = {};
-  const ids = [...CROPS.map(c => c.id), ...GOODS.map(g => g.id)];
+  const ids = [...CROPS.map(c => c.id), ...FISH.map(f => f.id), ...GOODS.map(g => g.id)];
   ids.forEach(id => {
     ART.icons[id] = makeSprite(32, 32, 0, 0, g => drawIcon(g, id), { S: 3, edge: 1.3 });
   });
@@ -911,7 +911,7 @@ function yieldNow() {
 async function buildArtAsync(onProgress) {
   ART.sprites = {}; ART.icons = {};
   const jobs = [];
-  [...CROPS.map(c => c.id), ...GOODS.map(g => g.id)].forEach(id => jobs.push(() => { ART.icons[id] = makeSprite(32, 32, 0, 0, g => drawIcon(g, id), { S: 3, edge: 1.3 }); }));
+  [...CROPS.map(c => c.id), ...FISH.map(f => f.id), ...GOODS.map(g => g.id)].forEach(id => jobs.push(() => { ART.icons[id] = makeSprite(32, 32, 0, 0, g => drawIcon(g, id), { S: 3, edge: 1.3 }); }));
   Object.keys(UI_ICON).forEach(id => jobs.push(() => { ART.icons['ui_' + id] = makeSprite(32, 32, 0, 0, g => UI_ICON[id](g), { S: 3, edge: 1.3 }); }));
   for (let i = 0; i < jobs.length; i++) {
     jobs[i]();

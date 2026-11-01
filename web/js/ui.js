@@ -101,7 +101,6 @@ function buildHud() {
   $('hGoal').onclick = () => { AUDIO.sfx('click'); openPanel('goals'); };
   $('hCoins').onclick = () => { AUDIO.sfx('click'); openPanel('market'); };
   $('hMeeples').onclick = () => { AUDIO.sfx('click'); openPanel('meeples'); };
-  $('hSeason').onclick = () => { AUDIO.sfx('click'); openPanel('almanac'); };
 }
 function updateHud() {
   const L = UI.lastHud;
@@ -109,14 +108,6 @@ function updateHud() {
   if (L.c !== c) { $('hCoins').innerHTML = iconImg('coin') + '<span class="n">' + c + '</span>'; L.c = c; }
   const mq = S.meeples.length;
   if (L.m !== mq) { $('hMeeples').innerHTML = iconImg('meeple') + '<span class="n">' + mq + '</span>'; L.m = mq; }
-  const sea = seasonIdx(), rain = S.weather && S.weather.rain > 0;
-  const ss = sea + ':' + Math.ceil(seasonLeft() / 60) + ':' + rain;
-  if (L.s !== ss) {
-    L.s = ss;
-    const SE = SEASONS[sea];
-    $('hSeason').innerHTML = `<span class="semoji">${SE.icon}</span><span><b>${SE.name}</b> <small>Y${seasonYear()}</small><br><small>${rain ? '🌧 Rain · ' : ''}${fmtTime(Math.ceil(seasonLeft() / 60) * 60)} left</small></span>`;
-    $('hSeason').style.background = `linear-gradient(90deg, ${SE.col}55, var(--paper) 60%)`;
-  }
   const nx = S.level + 1, pr = levelProgress(nx);
   const gsig = S.level + ':' + (pr ? pr.parts.map(p => p.have).join(',') : 'x');
   if (L.g !== gsig) {
@@ -172,7 +163,7 @@ const HINTS = [
   { done: () => S.level >= 1, text: () => `Bank <b>25 carrots</b> to unlock Wheat. Use <b>Clear</b> to cut back the brambles and <b>Build</b> more garden plots.` },
   { done: () => S.buildings.some(b => b.type === 'mill'), text: () => `Wheat unlocked! Tap <b>Crops</b>, pick Wheat, then tap the plots you want it in. Build a <b>Windmill</b> to grind flour.` },
   { done: () => S.buildings.some(b => b.type === 'well'), text: () => `Tip: build a <b>Stone Well</b> from the Build menu. Meeples will fill watering cans there, and watered crops grow 60% faster.` },
-  { done: () => S.playTime > SEASON_LEN * 0.5 || S.level >= 4, text: () => `Crops only grow in their seasons. Tap a plot to plan what it grows each season — it switches over by itself. Tap the season badge for the almanac.` },
+  { done: () => S.buildings.some(b => b.type === 'dock') || S.level >= 7, text: () => `Optional: clear a path to a pond, build a <b>Fishing Dock</b> beside the water, then give a Meeple the <b>Fish</b> job.` },
 ];
 function updateHint() {
   const el = $('hint');
@@ -190,7 +181,7 @@ const PANELS = {};
 function openPanel(type, id, tab) {
   hidePop();
   UI.panel = { type, id, tab: tab || (PANELS[type].tabs ? PANELS[type].tabs[0][0] : null) };
-  R.sel = type === 'plot' ? { kind: 'plot', id } : (type === 'proc' || type === 'creator' || type === 'bldg' || type === 'greenhouse') ? { kind: 'b', id } : type === 'meeple' ? { kind: 'm', id } : null;
+  R.sel = type === 'plot' ? { kind: 'plot', id } : (type === 'proc' || type === 'creator' || type === 'bldg' || type === 'greenhouse' || type === 'dock') ? { kind: 'b', id } : type === 'meeple' ? { kind: 'm', id } : null;
   UI.sig = ''; $('panel').classList.remove('hidden');
   AUDIO.sfx('open');
   renderPanel(true);
@@ -271,6 +262,7 @@ function meepleTask(m) {
     case 'wander': return 'Wandering';
     case 'fill': return 'Filling a watering can at the well';
     case 'water': return 'Watering crops (' + m.can + ' left in can)';
+    case 'fish': return m.path.length ? 'Walking to the dock' : 'Fishing (' + m.hand.length + '/' + mCarry(m) + ' caught)';
   }
   return '';
 }
@@ -279,7 +271,7 @@ const lvName = L => LEVELS[L].crop ? CROP[LEVELS[L].crop].name : 'the Fair';
 
 // --- build
 PANELS.build = {
-  tabs: [['farm', 'Farm'], ['craft', 'Crafting'], ['core', 'Homestead'], ['decor', 'Decor']],
+  tabs: [['farm', 'Farm'], ['craft', 'Crafting'], ['water', 'Fishing'], ['core', 'Homestead'], ['decor', 'Decor']],
   head: () => `${iconImg('hammer', 'lg')}<h2>Build<small>Place new things on cleared land</small></h2>`,
   sig: p => S.level + ':' + Object.keys(BUILDINGS).map(t => (S.coins >= bCost(t) ? 1 : 0) + '' + bCount(t)).join(''),
   body: p => {
@@ -302,28 +294,26 @@ const seaDots = c => '<span class="sdots">' + SEASONS.map((S2, i) => `<i style="
 PANELS.plot = {
   valid: p => !!S.plots[p.id],
   head: p => { const pl = S.plots[p.id]; return `${iconImg(pl.crop, 'lg')}<h2>${pl.gh ? 'Greenhouse Plot' : 'Garden Plot'}<small>Growing ${CROP[pl.crop].name}</small></h2>`; },
-  sig: p => { const pl = S.plots[p.id]; return pl.crop + pl.st + S.level + JSON.stringify(pl.plan) + (p.sea != null ? p.sea : '') + seasonIdx(); },
+  sig: p => { const pl = S.plots[p.id]; return pl.crop + pl.st + S.level; },
   body: p => {
     const pl = S.plots[p.id], cr = CROP[pl.crop], now = seasonIdx();
     if (p.sea == null) p.sea = now;
-    let h = `<div class="card"><div class="row">${iconImg(pl.crop, 'xl')}<div class="grow"><div class="t">${cr.name} ${seaDots(pl.crop)}</div><div class="s" data-live="plott:${p.id}"></div><div class="s" data-live="plotlife:${p.id}"></div>
+    let h = `<div class="card"><div class="row">${iconImg(pl.crop, 'xl')}<div class="grow"><div class="t">${cr.name}</div><div class="s" data-live="plott:${p.id}"></div><div class="s" data-live="plotlife:${p.id}"></div>
       <div class="bar big" style="margin-top:.3rem"><i data-bar="plot:${p.id}"></i></div>${pl.bonus > 1 ? `<div class="s">+${Math.round((pl.bonus - 1) * 100)}% growth from nearby scarecrows</div>` : ''}</div></div></div>`;
-    if (!pl.gh) {
-      h += `<div class="sec">Plan by season</div><div class="seatabs">` + SEASONS.map((S2, i) => `<button class="btn sm ${p.sea === i ? 'on' : ''}" data-a="ptab" data-v="${i}">${S2.icon} ${S2.name}${i === now ? ' <small>(now)</small>' : ''}<span class="ptab-ic">${(pl.plan && pl.plan[i]) || (i === now ? pl.crop : null) ? iconImg((pl.plan && pl.plan[i]) || pl.crop, 'sm') : '—'}</span></button>`).join('') + `</div>`;
-    } else h += `<div class="sec">Choose a crop — any season works under glass</div>`;
-    const selected = pl.gh ? pl.crop : (pl.plan && pl.plan[p.sea]) || (p.sea === now ? pl.crop : null);
+    h += `<div class="sec">Choose a crop</div>`;
+    const selected = pl.crop;
     h += `<div class="grid">`;
     for (let L = 0; L < LEVELS.length; L++) {
       const c = LEVELS[L].crop; if (!c) continue;
-      const lock = L > S.level, off = !pl.gh && !CROP[c].sea.includes(p.sea);
-      h += `<div class="cell ${selected === c ? 'sel' : ''} ${lock ? 'locked' : ''} ${off && !lock ? 'off' : ''}" ${lock ? '' : `data-a="crop" data-v="${c}"`}>${lock ? '<div style="font-size:1.6rem;height:2.3rem">🔒</div>' : iconImg(c)}${lock ? 'Lv ' + (L + 1) : CROP[c].name}<div class="s">${lock ? '' : fmtTime(CROP[c].grow) + ' · ' + harvestLabel(CROP[c])}</div>${lock ? '' : seaDots(c)}</div>`;
+      const lock = L > S.level, off = false;
+      h += `<div class="cell ${selected === c ? 'sel' : ''} ${lock ? 'locked' : ''} ${off && !lock ? 'off' : ''}" ${lock ? '' : `data-a="crop" data-v="${c}"`}>${lock ? '<div style="font-size:1.6rem;height:2.3rem">🔒</div>' : iconImg(c)}${lock ? 'Lv ' + (L + 1) : CROP[c].name}<div class="s">${lock ? '' : fmtTime(CROP[c].grow) + ' · ' + harvestLabel(CROP[c])}</div></div>`;
     }
     h += `</div><div class="sec">Quick actions</div><div class="row wrap">`;
     if (pl.gh) h += `<button class="btn sm" data-a="ghall">${iconImg(pl.crop, 'sm')} Plant ${cr.name} in this whole greenhouse</button>`;
-    else h += `<button class="btn sm" data-a="cropall">${iconImg('scroll', 'sm')} Copy this plot's plan to ALL plots</button>
-      <button class="btn sm" data-a="cropempty">${iconImg('scroll', 'sm')} …to connected plots</button>
+    else h += `<button class="btn sm" data-a="cropall">${iconImg(pl.crop, 'sm')} Plant ${cr.name} in ALL plots</button>
+      <button class="btn sm" data-a="cropempty">${iconImg(pl.crop, 'sm')} …in this whole bed</button>
       <button class="btn sm red" data-a="rmplot">${iconImg('trash', 'sm')} Remove plot</button>`;
-    h += `</div><p class="s">Sells for ${iconImg('coin', 'sm')}${sellPrice(pl.crop)} each · Changing the current crop restarts the plot. Faded crops won't grow in the chosen season.</p>`;
+    h += `</div><p class="s">Sells for ${iconImg('coin', 'sm')}${sellPrice(pl.crop)} each · Changing the crop restarts the plot.</p>`;
     return h;
   },
 };
@@ -336,15 +326,13 @@ PANELS.crops = {
     const cell = (c, L) => {
       if (L > S.level) return `<div class="cell locked"><div style="font-size:1.6rem;height:2.3rem">🔒</div>Lv ${L + 1}</div>`;
       const cr = CROP[c], off = !cropInSeason(c, now);
-      return `<div class="cell ${UI.paintCrop === c ? 'sel' : ''} ${off ? 'off' : ''}" data-a="paint" data-v="${c}">${iconImg(c)}${cr.name}<div class="s">${fmtTime(cr.grow)} · ${iconImg('coin', 'sm')}${sellPrice(c)}</div><div class="hv" title="harvests per planting">${harvestLabel(cr)} harvest${cr.harvests === 1 ? '' : 's'}</div>${seaDots(c)}</div>`;
+      return `<div class="cell ${UI.paintCrop === c ? 'sel' : ''} ${off ? 'off' : ''}" data-a="paint" data-v="${c}">${iconImg(c)}${cr.name}<div class="s">${fmtTime(cr.grow)} · ${iconImg('coin', 'sm')}${sellPrice(c)}</div><div class="hv" title="harvests per planting">${harvestLabel(cr)} harvest${cr.harvests === 1 ? '' : 's'}</div></div>`;
     };
     const all = LEVELS.map((l, L) => [l.crop, L]).filter(x => x[0]);
-    const inS = all.filter(([c, L]) => L <= S.level && cropInSeason(c, now)), outS = all.filter(([c, L]) => L <= S.level && !cropInSeason(c, now)), locked = all.filter(([c, L]) => L > S.level);
-    let h = `<div class="sec">${SEASONS[now].icon} In season now</div><div class="grid">${inS.map(x => cell(...x)).join('')}</div>`;
-    if (outS.length) h += `<div class="sec">Out of season</div><p class="s">These rest outdoors until their season returns, but grow fine in a greenhouse.</p><div class="grid">${outS.map(x => cell(...x)).join('')}</div>`;
+    const open = all.filter(([c, L]) => L <= S.level), locked = all.filter(([c, L]) => L > S.level);
+    let h = `<div class="grid">${open.map(x => cell(...x)).join('')}</div>`;
     if (locked.length) h += `<div class="sec">Still to unlock</div><div class="grid">${locked.map(x => cell(...x)).join('')}</div>`;
     h += `<p class="s"><b>1×</b> crops are dug up at harvest and replanted from seed. Crops with several harvests regrow faster after the first. <b>∞</b> perennials keep producing forever.</p>`;
-    h += `<p class="s">Planting also sets that plot's plan for ${SEASONS[now].name}. Tap a plot normally (outside planting mode) to plan other seasons.</p>`;
     return h;
   },
 };
@@ -357,15 +345,96 @@ function paintPlot(i) {
   AUDIO.sfx('pop');
   return true;
 }
+// --- fishing dock
+const fishers = () => S.meeples.filter(m => m.fish);
+PANELS.dock = {
+  valid: p => !!BMAP[p.id],
+  head: () => `${iconImg('trout', 'lg')}<h2>Fishing Dock<small>Fishing level ${fishLevel()}</small></h2>`,
+  sig: p => fishLevel() + ':' + fishers().map(m => m.id).join(',') + ':' + (BMAP[p.id].claim || 0),
+  body: p => {
+    const b = BMAP[p.id], lv = fishLevel(), cur = S.fishXP || 0, lo = fishXpFor(lv), hi = fishXpFor(lv + 1);
+    const at = S.meeples.find(m => m.id === b.claim), fs = fishers();
+    let h = `<div class="card"><div class="t">Fishing level ${lv}${lv >= FISH_LV_MAX ? ' (max)' : ''}</div>
+      ${lv < FISH_LV_MAX ? `<div class="bar big" style="margin:.3rem 0"><i style="width:${((cur - lo) / (hi - lo) * 100).toFixed(1)}%"></i></div><div class="s">${fmt(cur - lo)} / ${fmt(hi - lo)} XP to level ${lv + 1}. Every catch earns XP; higher levels mean faster bites and rarer fish.</div>` : ''}
+      <div class="s" style="margin-top:.3rem">${at ? `🎣 <b>${esc(at.name)}</b> is fishing here.` : fs.length ? `${fs.length} Meeple${fs.length > 1 ? 's are' : ' is'} on fishing duty (one per dock).` : `No Meeple is assigned. Open <b>Meeples</b> and tap 🎣 on someone.`}</div></div>
+      <button class="btn wide gold ${fs.length ? '' : 'dis'}" data-a="minigame" style="margin-bottom:.6rem">🎣 Reel one in yourself (double XP)</button>`;
+    const ch = fishChances(lv);
+    h += `<div class="sec">Catch odds at level ${lv}</div>`;
+    FISH.forEach((f, i) => {
+      const rr = RARITY[f.rar];
+      h += `<div class="card" style="padding:.35rem .55rem;${lv < f.minLv ? 'opacity:.5' : ''}"><div class="row">${iconImg(f.id, 'lg')}<div class="grow"><div class="t">${lv < f.minLv ? '???' : f.name} <span class="s" style="color:${rr.col}">· ${rr.name}</span></div>
+        <div class="s">${lv < f.minLv ? 'Bites from fishing level ' + f.minLv : iconImg('coin', 'sm') + fmt(sellPrice(f.id)) + ' · ' + f.xp + ' XP'}</div></div><b class="n">${(ch[i] * 100).toFixed(ch[i] < 0.01 ? 2 : 1)}%</b></div></div>`;
+    });
+    h += `<div class="sec">Building</div><div class="row"><button class="btn sm" data-a="move">${iconImg('move', 'sm')} Move</button><button class="btn sm red" data-a="demolish">${iconImg('trash', 'sm')} Demolish</button></div>`;
+    return h;
+  },
+};
+// Reel-in mini-game: tap Reel! while the bobber is inside the green zone. Rarer fish move faster
+// and give a smaller zone; your fishing level widens the zone.
+function openFishingGame() {
+  if (!fishers().length) { toast('Assign a Meeple to Fish first (Meeples → 🎣)', true); return; }
+  const fish = FISHMAP[rollFish()], rIdx = ['common', 'uncommon', 'rare', 'epic', 'legendary'].indexOf(fish.rar), lv = fishLevel();
+  const st = { hits: 0, miss: 0, need: 3, zone: Math.max(0.1, Math.min(0.42, 0.3 - rIdx * 0.045 + lv * 0.007)), zc: 0.5, speed: 0.55 + rIdx * 0.22, t: 0, done: false, flash: 0, fc: '' };
+  const hint = ['A little nibble…', 'Something tugging…', 'A strong pull!', 'Something BIG!', 'The water is glowing…!'][rIdx];
+  const m = modal(`<h2>🎣 Gone Fishing</h2><p class="p" id="fgMsg">${hint} Tap <b>Reel!</b> when the bobber is in the green.</p>
+    <canvas id="fgCv" width="640" height="150" style="width:100%;max-width:34rem;border:2px solid var(--ink);border-radius:.8rem;display:block;margin:.4rem auto"></canvas>
+    <div class="row" style="justify-content:center;gap:1rem"><span class="s" id="fgScore"></span></div>
+    <div class="btns" id="fgBtns"><button class="btn gold" data-a="reel" style="font-size:1.4rem;padding:.8rem 2.4rem">Reel!</button><button class="btn" data-a="leave">Leave</button></div>`,
+    a => {
+      if (a === 'leave') { st.done = true; closeModal(); }
+      else if (a === 'again') { st.done = true; openFishingGame(); }
+      else if (a === 'reel' && !st.done) {
+        const pos = (Math.sin(st.t * st.speed * Math.PI * 2) + 1) / 2;
+        if (Math.abs(pos - st.zc) <= st.zone / 2) { st.hits++; st.flash = 1; st.fc = '#7ad050'; AUDIO.sfx('pop'); st.zc = 0.15 + Math.random() * 0.7; }
+        else { st.miss++; st.flash = 1; st.fc = '#e8463a'; AUDIO.sfx('error'); }
+        if (st.hits >= st.need) finish(true); else if (st.miss >= 2) finish(false);
+      }
+    });
+  const cv = document.getElementById('fgCv'), g = cv.getContext('2d');
+  function finish(won) {
+    st.done = true;
+    const msg = document.getElementById('fgMsg'), btns = document.getElementById('fgBtns');
+    if (won) {
+      invAdd(fish.id, 1); addFishXP(fish.xp * 2); AUDIO.sfx('meeple');
+      msg.innerHTML = `<span class="burst" style="display:inline-block">${iconImg(fish.id, 'xl')}</span><br>You caught a <b>${fish.name}</b>! <span style="color:${RARITY[fish.rar].col};font-weight:900">${RARITY[fish.rar].name}</span> · +${fish.xp * 2} XP`;
+    } else { addFishXP(1); msg.innerHTML = `It got away! <span class="s">(+1 XP)</span>`; }
+    btns.innerHTML = `<button class="btn green" data-a="again">Cast again</button><button class="btn" data-a="leave">Done</button>`;
+  }
+  let last = performance.now();
+  (function loop(now) {
+    if (!document.getElementById('fgCv')) return;
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!st.done) st.t += dt;
+    if (rIdx >= 3 && !st.done) st.zc = Math.max(st.zone / 2, Math.min(1 - st.zone / 2, st.zc + Math.sin(st.t * 1.3) * dt * 0.12));
+    const W = cv.width, H = cv.height, x0 = 30, x1 = W - 30, bw = x1 - x0;
+    const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#6ab8d8'); gr.addColorStop(1, '#2a6a9a');
+    g.fillStyle = gr; g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 2;
+    for (let i = 0; i < 6; i++) { const y = 20 + i * 22, o = (st.t * 30 + i * 50) % 80; g.beginPath(); g.moveTo(o, y); g.quadraticCurveTo(o + 20, y - 4, o + 40, y); g.stroke(); }
+    g.fillStyle = 'rgba(0,30,50,0.35)'; g.fillRect(x0, 62, bw, 26);
+    g.fillStyle = 'rgba(120,230,100,0.85)'; g.fillRect(x0 + (st.zc - st.zone / 2) * bw, 62, st.zone * bw, 26);
+    g.strokeStyle = '#3d2a1f'; g.lineWidth = 2; g.strokeRect(x0, 62, bw, 26);
+    const pos = (Math.sin(st.t * st.speed * Math.PI * 2) + 1) / 2, bx = x0 + pos * bw;
+    g.beginPath(); g.moveTo(bx, 0); g.lineTo(bx, 60); g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 1.5; g.stroke();
+    g.beginPath(); g.arc(bx, 75, 13, 0, Math.PI * 2); g.fillStyle = '#e8463a'; g.fill(); g.lineWidth = 2; g.strokeStyle = '#3d2a1f'; g.stroke();
+    g.fillStyle = '#fbf8f0'; g.fillRect(bx - 13, 73, 26, 5);
+    // the fish shadow lurking below
+    g.globalAlpha = 0.35; g.fillStyle = '#0a1a2a'; g.beginPath(); g.ellipse(W / 2 + Math.sin(st.t * 0.7) * 120, 122, 26 + rIdx * 8, 9 + rIdx * 2, 0, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
+    if (st.flash > 0) { g.globalAlpha = st.flash * 0.35; g.fillStyle = st.fc; g.fillRect(0, 0, W, H); g.globalAlpha = 1; st.flash -= dt * 3; }
+    const sc = document.getElementById('fgScore');
+    if (sc) sc.innerHTML = `Reeled ${'🟢'.repeat(st.hits)}${'⚪'.repeat(st.need - st.hits)} &nbsp; Slips ${'❌'.repeat(st.miss)}${'·'.repeat(2 - st.miss)}`;
+    requestAnimationFrame(loop);
+  })(last);
+}
 // --- greenhouse
 PANELS.greenhouse = {
   valid: p => !!BMAP[p.id],
-  head: () => `${iconImg('glasshouse', 'lg')}<h2>Greenhouse<small>Grows anything, any season</small></h2>`,
+  head: () => `${iconImg('glasshouse', 'lg')}<h2>Greenhouse<small>Faster growing, always watered</small></h2>`,
   sig: p => S.level,
   body: p => {
     let h = `<p class="p">The roof is lifted — tap any plot inside to choose its crop, or plant one crop everywhere:</p><div class="grid">`;
     for (let L = 0; L <= S.level && L < LEVELS.length; L++) { const c = LEVELS[L].crop; if (c) h += `<div class="cell" data-a="ghcrop" data-v="${c}">${iconImg(c)}${CROP[c].name}<div class="s">${fmtTime(CROP[c].grow)}</div></div>`; }
-    h += `</div><div class="sec">Building</div><button class="btn sm red" data-a="demolish">${iconImg('trash', 'sm')} Demolish</button><p class="s">Greenhouse plots aren't watered by rain, so a nearby well helps.</p>`;
+    h += `</div><div class="sec">Building</div><button class="btn sm red" data-a="demolish">${iconImg('trash', 'sm')} Demolish</button><p class="s">Greenhouse plots grow 50% faster and never need watering.</p>`;
     return h;
   },
 };
@@ -504,15 +573,15 @@ PANELS.storage = {
 // --- meeples list
 PANELS.meeples = {
   head: () => `${iconImg('meeple', 'lg')}<h2>Meeples<small>${S.meeples.length} of ${MEEPLE_MAX}</small></h2>`,
-  sig: () => S.meeples.map(m => m.id + (m.farm ? 'f' : '') + (m.haul ? 'h' : '') + (m.water !== false ? 'w' : '') + m.name).join(',') + upg('boots') + upg('basket'),
+  sig: () => S.meeples.map(m => m.id + (m.farm ? 'f' : '') + (m.haul ? 'h' : '') + (m.water !== false ? 'w' : '') + (m.fish ? 'F' : '') + m.name).join(',') + upg('boots') + upg('basket'),
   body: () => {
     const cr = S.buildings.find(b => b.type === 'creator');
     let h = cr ? `<button class="btn wide green" data-a="opencreator" style="margin-bottom:.6rem">${iconImg('meeple')} Create a Meeple</button>` : `<p class="s">Build a <b>Meeple Creator</b> to make more Meeples.</p>`;
-    h += `<p class="s"><b>Farm</b> = plant & harvest. <b>Water</b> = fill cans at a well and water crops. <b>Haul</b> = carry ingredients to and from crafting buildings.</p>`;
+    h += `<p class="s"><b>Farm</b> = plant & harvest. <b>Water</b> = fill cans at a well and water crops. <b>Haul</b> = carry ingredients to and from crafting buildings. <b>🎣 Fish</b> = fish at a dock full-time (overrides the other jobs).</p>`;
     for (const m of S.meeples) {
       h += `<div class="card"><div class="row"><img src="${meepleURL(m.col, m.crop)}" style="width:2.8rem;height:3.1rem"><div class="grow"><div class="t">${esc(m.name)} <span class="s">· ${m.trait}</span></div>
         <div class="s">🏃 ${mSpeed(m).toFixed(1)} · 🧺 ${mCarry(m)} · ✋ ${mWork(m).toFixed(1)}</div><div class="s" data-live="mt:${m.id}"></div></div>
-        <div style="display:flex;flex-direction:column;gap:.25rem;align-items:flex-end"><div class="toggle"><button class="${m.farm ? 'on' : ''}" data-a="mfarm" data-v="${m.id}">Farm</button><button class="${m.water !== false ? 'on' : ''}" data-a="mwater" data-v="${m.id}">Water</button><button class="${m.haul ? 'on' : ''}" data-a="mhaul" data-v="${m.id}">Haul</button></div>
+        <div style="display:flex;flex-direction:column;gap:.25rem;align-items:flex-end"><div class="toggle"><button class="${m.farm ? 'on' : ''}" data-a="mfarm" data-v="${m.id}">Farm</button><button class="${m.water !== false ? 'on' : ''}" data-a="mwater" data-v="${m.id}">Water</button><button class="${m.haul ? 'on' : ''}" data-a="mhaul" data-v="${m.id}">Haul</button><button class="${m.fish ? 'on' : ''}" data-a="mfish" data-v="${m.id}">🎣</button></div>
         <button class="btn sm" data-a="mfind" data-v="${m.id}">Find</button></div></div></div>`;
     }
     return h;
@@ -522,14 +591,14 @@ PANELS.meeples = {
 PANELS.meeple = {
   valid: p => S.meeples.some(m => m.id === p.id),
   head: p => { const m = S.meeples.find(x => x.id === p.id); return `<img src="${meepleURL(m.col, m.crop)}" style="width:2.6rem;height:2.9rem"><h2>${esc(m.name)}<small>${m.crop === 'founder' ? 'The founding Meeple' : CROP[m.crop].name + ' Meeple'} · ${m.trait}</small></h2>`; },
-  sig: p => { const m = S.meeples.find(x => x.id === p.id); return m.name + m.farm + m.haul + m.water + upg('boots') + upg('basket') + upg('hands'); },
+  sig: p => { const m = S.meeples.find(x => x.id === p.id); return m.name + m.farm + m.haul + m.water + m.fish + upg('boots') + upg('basket') + upg('hands'); },
   body: p => {
     const m = S.meeples.find(x => x.id === p.id);
     const sb = (lbl, v, mx) => `<div class="stat"><b>${lbl}</b><div class="statbar"><i style="width:${Math.min(100, v / mx * 100)}%"></i></div><span>${v}</span></div>`;
     return `<div class="card"><div class="row"><img src="${meepleURL(m.col, m.crop)}" style="width:4.6rem;height:5.2rem"><div class="grow">
       ${sb('Speed', +mSpeed(m).toFixed(2), 5)}${sb('Carry', mCarry(m), 18)}${sb('Hands', +mWork(m).toFixed(2), 3)}
       <div class="s" style="margin-top:.3rem">Now: <b data-live="mt:${m.id}"></b></div></div></div></div>
-      <div class="sec">Jobs</div><div class="row"><div class="toggle"><button class="${m.farm ? 'on' : ''}" data-a="mfarm" data-v="${m.id}">Farm</button><button class="${m.water !== false ? 'on' : ''}" data-a="mwater" data-v="${m.id}">Water</button><button class="${m.haul ? 'on' : ''}" data-a="mhaul" data-v="${m.id}">Haul</button></div>
+      <div class="sec">Jobs</div><div class="row"><div class="toggle"><button class="${m.farm ? 'on' : ''}" data-a="mfarm" data-v="${m.id}">Farm</button><button class="${m.water !== false ? 'on' : ''}" data-a="mwater" data-v="${m.id}">Water</button><button class="${m.haul ? 'on' : ''}" data-a="mhaul" data-v="${m.id}">Haul</button><button class="${m.fish ? 'on' : ''}" data-a="mfish" data-v="${m.id}">Fish</button></div>
       <span class="grow"></span><button class="btn sm" data-a="mrename" data-v="${m.id}">Rename</button></div>
       <p class="s">Stats come from the crop a Meeple was made from, with a little natural variety.</p>`;
   },
@@ -549,10 +618,12 @@ const CHAINS = [
   { name: 'Lavender Oil', steps: [['lavender'], ['driedlavender', 'dryer'], ['lavenderoil', 'press', ['sunoil']]] },
   { name: 'Rice Soju', steps: [['rice'], ['sake', 'barrel'], ['soju', 'still']] },
   { name: 'Peach Schnapps', steps: [['peach'], ['peachnectar', 'juicer', ['sugar']], ['schnapps', 'still']] },
+  { name: 'Smoked Salmon Platter', steps: [['salmon'], ['smokedsalmon', 'smokehouse'], ['platter', 'sushi', ['caviar', 'rice']]] },
+  { name: 'Fish & Chips', steps: [['bluegill'], ['fishchips', 'oven', ['potato', 'sunoil']]] },
   { name: 'Chocolate Cake', steps: [['cocoa'], ['cocoanibs', 'dryer'], ['chocolate', 'pot', ['sugar']], ['cake', 'oven', ['flour']]] },
 ];
 PANELS.recipes = {
-  tabs: [['chains', 'Chains'], ['mill', 'Mill'], ['pot', 'Big Pot'], ['crock', 'Crock'], ['oven', 'Oven'], ['kettle', 'Kettle'], ['dryer', 'Dryer'], ['juicer', 'Juicer'], ['barrel', 'Barrel'], ['press', 'Oil Press'], ['loom', 'Loom'], ['teahouse', 'Tea House'], ['still', 'Still']],
+  tabs: [['chains', 'Chains'], ['mill', 'Mill'], ['pot', 'Big Pot'], ['crock', 'Crock'], ['oven', 'Oven'], ['kettle', 'Kettle'], ['dryer', 'Dryer'], ['juicer', 'Juicer'], ['barrel', 'Barrel'], ['press', 'Oil Press'], ['loom', 'Loom'], ['teahouse', 'Tea House'], ['still', 'Still'], ['smokehouse', 'Smokehouse'], ['sushi', 'Sushi']],
   head: () => `${iconImg('book', 'lg')}<h2>Recipe Book<small>How ingredients become treasures</small></h2>`,
   sig: () => S.level,
   body: p => {
@@ -604,23 +675,23 @@ $('panel').addEventListener('click', e => {
     case 'remove': setMode('remove'); closePanel(); return;
     case 'paint': setMode('paint', v); return;
     case 'ptab': P.sea = +v; break;
-    case 'crop': setPlotCrop(P.id, v, false, S.plots[P.id].gh ? undefined : P.sea); break;
+    case 'crop': setPlotCrop(P.id, v); break;
     case 'ghall': case 'ghcrop': {
       const gid = a === 'ghcrop' ? P.id : S.plots[P.id].gh, c = a === 'ghcrop' ? v : S.plots[P.id].crop;
       for (const k in S.plots) if (S.plots[k].gh === gid) setPlotCrop(+k, c);
       toast('Greenhouse now grows ' + CROP[c].name, false, c); break;
     }
     case 'cropall': {
-      const src = S.plots[P.id], plan = Object.assign({}, src.plan, { [seasonIdx()]: src.crop });
-      for (const k in S.plots) { const q = S.plots[k]; if (q.gh) continue; for (const sk in plan) setPlotCrop(+k, plan[sk], false, +sk); }
-      toast("Every outdoor plot now follows this plot's seasonal plan", false, 'scroll'); break;
+      const c = S.plots[P.id].crop;
+      for (const k in S.plots) if (!S.plots[k].gh) setPlotCrop(+k, c);
+      toast('All plots now grow ' + CROP[c].name, false, c); break;
     }
     case 'cropempty': {
-      const src = S.plots[P.id], plan = Object.assign({}, src.plan, { [seasonIdx()]: src.crop });
-      // flood through connected plots
+      const c = S.plots[P.id].crop;
+      // flood through connected plots (the whole bed)
       const seen = new Set([P.id]), q = [P.id];
       while (q.length) { const i = q.pop(), x = i % MW, y = (i / MW) | 0; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = idx(x + dx, y + dy); if (inMap(x + dx, y + dy) && S.plots[n] && !S.plots[n].gh && !seen.has(n)) { seen.add(n); q.push(n); } } }
-      seen.forEach(i => { for (const sk in plan) setPlotCrop(i, plan[sk], false, +sk); }); toast(seen.size + ' connected plots now follow this plan', false, 'scroll'); break;
+      seen.forEach(i => setPlotCrop(i, c)); toast('This bed of ' + seen.size + ' plots now grows ' + CROP[c].name, false, c); break;
     }
     case 'rmplot': removeFloor(P.id); closePanel(); return;
     case 'recipe': setRecipe(BMAP[P.id], v); AUDIO.sfx('buy'); break;
@@ -637,6 +708,14 @@ $('panel').addEventListener('click', e => {
     case 'sell': { const [id, n] = v.split(':'); const got = sell(id, n === 'all' ? 1e12 : +n); if (got) { AUDIO.sfx('coin'); } break; }
     case 'auto': { const cur = S.auto[v] != null ? S.auto[v] : null, i = AUTO_STEPS.indexOf(cur), nx = AUTO_STEPS[(i + 1) % AUTO_STEPS.length]; if (nx == null) delete S.auto[v]; else S.auto[v] = nx; break; }
     case 'upg': { const u = UPGRADES.find(x => x.id === v); if (buyUpgrade(u)) { toast(u.name + ' upgraded!', false, 'ui_' + u.icon); AUDIO.sfx('buy'); } break; }
+    case 'mfish': {
+      const m = S.meeples.find(x => x.id == v); m.fish = !m.fish; dropTask(m);
+      if (m.fish && !S.buildings.some(b => b.type === 'dock')) toast(m.name + ' will fish once you build a Fishing Dock by a pond', false, 'trout');
+      else toast(m.fish ? m.name + ' is off to fish' : m.name + ' is back on the farm', false, m.fish ? 'trout' : 'soil');
+      break;
+    }
+    case 'opendock': openPanel('dock', +v); return;
+    case 'minigame': openFishingGame(); return;
     case 'mfarm': case 'mhaul': case 'mwater': {
       const m = S.meeples.find(x => x.id == v), key = { mfarm: 'farm', mhaul: 'haul', mwater: 'water' }[a];
       m[key] = m[key] === false ? true : !m[key];
@@ -696,6 +775,7 @@ function onWorldTap(sx, sy) {
   if (bid) {
     const b = BMAP[bid];
     if (b.type === 'creator') openPanel('creator', b.id);
+    else if (b.type === 'dock') openPanel('dock', b.id);
     else if (b.type === 'market') openPanel('market');
     else if (BUILDINGS[b.type].proc) openPanel('proc', b.id);
     else openPanel('bldg', b.id);
@@ -805,6 +885,9 @@ function onGameEvent(e) {
       <div class="sec">In season now</div><div class="row wrap" style="justify-content:center">${cs.map(c => `<span class="chip">${iconImg(c.id, 'sm')}${c.name}</span>`).join('')}</div>
       <div class="btns"><button class="btn green" data-a="ok">Lovely</button></div>`, () => closeModal());
     saveGame();
+  } else if (e.t === 'fishlevel') {
+    AUDIO.sfx('level');
+    toast(`🎣 Fishing level ${e.lv}! Rarer fish bite more often.`, false, 'trout');
   } else if (e.t === 'rain') {
     toast('🌧 Rain is watering the fields', false);
   } else if (e.t === 'meeple') {
@@ -920,7 +1003,8 @@ function openHelp(fromPause) {
     <p>${iconImg('meeple', 'sm')} <b>Meeples</b> do the work: they plant, harvest and haul everything to the <b>storehouse</b> on their own.</p>
     <p>${iconImg('soil', 'sm')} Tap <b>Crops</b>, pick a crop, then tap or drag across plots to plant it. Tap a plot on its own to plan its crop for each season. Build more plots from <b>Build</b>.</p>
     <p>🔁 Some crops are harvested once and replanted; vines and leafy greens give several harvests; trees and bushes (∞) keep producing.</p>
-    <p>🌸 <b>Seasons</b> last 2 hours each. Crops only grow in their seasons and rest the rest of the year. The <b>Greenhouse</b> (late game) grows anything, any time.</p>
+    <p>🎣 <b>Fishing</b> is optional: build a <b>Fishing Dock</b> beside a pond and give a Meeple the <b>Fish</b> job. Fishing XP brings rarer fish. Tap the dock to reel one in yourself.</p>
+    <p>🏡 The <b>Greenhouse</b> (late game) grows crops 50% faster and never needs watering.</p>
     <p>${iconImg('can', 'sm')} Build a <b>Stone Well</b> and Meeples will fill watering cans there. Watered crops grow 60% faster; rain waters them for free.</p>
     <p>${iconImg('axe', 'sm')} The meadow is overgrown. Use <b>Clear</b> (or tap a tree) to pay for clearing land next to open ground. Further out costs more.</p>
     <p>${iconImg('coin', 'sm')} Sell at the <b>Market</b>, or set <b>Auto-sell</b> to keep a reserve and sell the extra.</p>

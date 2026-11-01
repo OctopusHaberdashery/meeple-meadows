@@ -201,17 +201,53 @@ function drawPathTile(g, X, Y, x0, y0, r, sea) {
     g.fillStyle = rgba('#ffffff', sea === 3 ? 0.7 : 0.25); g.fillRect(sx + 1.5, sy + 1, w * 0.5, sea === 3 ? 1.8 : 1);
   }
 }
+// Touching plots merge into one big bed: soil runs straight across shared edges and a plank
+// border frames only the outside of the bed, with posts on the corners.
 function drawPlotTile(g, X, Y, x0, y0, r, sea) {
-  rrect(g, x0 + 2, y0 + 3, T - 4, T - 4, 5); g.fillStyle = rgba('#2a1a0a', 0.25); g.fill();
-  rrect(g, x0 + 2, y0 + 2, T - 4, T - 4, 5); g.fillStyle = '#9a6a3a'; g.fill(); g.strokeStyle = INK; g.lineWidth = 0.9; g.stroke();
-  rrect(g, x0 + 5, y0 + 5, T - 10, T - 10, 3);
-  g.fillStyle = lgrad(g, x0, y0, x0, y0 + T, ['#7a5232', '#6a4426', '#5a3820']); g.fill();
-  g.strokeStyle = rgba('#3a2412', 0.55); g.lineWidth = 1.2;
-  for (let k = 0; k < 4; k++) { const yy = y0 + 10 + k * 9; g.beginPath(); g.moveTo(x0 + 8, yy); g.quadraticCurveTo(x0 + T / 2, yy + 1.5, x0 + T - 8, yy); g.stroke(); }
-  g.strokeStyle = rgba('#a87a4a', 0.5); g.lineWidth = 0.8;
-  for (let k = 0; k < 4; k++) { const yy = y0 + 8 + k * 9; g.beginPath(); g.moveTo(x0 + 8, yy); g.quadraticCurveTo(x0 + T / 2, yy + 1.5, x0 + T - 8, yy); g.stroke(); }
-  for (let k = 0; k < 5; k++) ell(g, x0 + 8 + r() * 32, y0 + 8 + r() * 32, 0.9, 0.7, '#b8a080');
-  if (sea === 3 && !(S.plots[idx(X, Y)] && S.plots[idx(X, Y)].gh)) { g.fillStyle = rgba('#ffffff', 0.85); for (let k = 0; k < 7; k++) { rrect(g, x0 + 2 + r() * (T - 10), y0 + 1 + (k % 2) * (T - 5), 6 + r() * 6, 3, 1.5); g.fill(); } }
+  const isP = (x, y) => inMap(x, y) && S.floor[idx(x, y)] === FLOOR.PLOT;
+  const L = isP(X - 1, Y), Rt = isP(X + 1, Y), U = isP(X, Y - 1), D = isP(X, Y + 1);
+  const B = 6;
+  const sx0 = x0 + (L ? 0 : B), sy0 = y0 + (U ? 0 : B), sx1 = x0 + T - (Rt ? 0 : B), sy1 = y0 + T - (D ? 0 : B);
+  // soil
+  g.fillStyle = lgrad(g, 0, y0, 0, y0 + T, ['#76502f', '#6a4426', '#5e3c22']);
+  g.fillRect(sx0, sy0, sx1 - sx0, sy1 - sy0);
+  // furrows at fixed world rows so they line up across neighbouring tiles
+  for (let k = 0; k < 4; k++) {
+    const yy = y0 + 9 + k * 10;
+    if (yy < sy0 + 2 || yy > sy1 - 2) continue;
+    g.fillStyle = rgba('#3a2412', 0.5); g.fillRect(sx0, yy, sx1 - sx0, 1.6);
+    g.fillStyle = rgba('#a87a4a', 0.45); g.fillRect(sx0, yy - 1.6, sx1 - sx0, 1.2);
+  }
+  for (let k = 0; k < 6; k++) ell(g, sx0 + 3 + r() * (sx1 - sx0 - 6), sy0 + 3 + r() * (sy1 - sy0 - 6), 0.9, 0.7, '#b8a080');
+  // shadow the soil just inside each border
+  g.fillStyle = 'rgba(30,15,5,0.28)';
+  if (!U) g.fillRect(sx0, sy0, sx1 - sx0, 3);
+  if (!L) g.fillRect(sx0, sy0, 3, sy1 - sy0);
+  // plank borders on outside edges
+  const wood = (x, y, w, h, horiz) => {
+    g.fillStyle = horiz ? lgrad(g, 0, y, 0, y + h, ['#c8945a', '#a8743e', '#8a5a2e']) : lgrad(g, x, 0, x + w, 0, ['#c8945a', '#a8743e', '#8a5a2e']);
+    g.fillRect(x, y, w, h);
+    g.strokeStyle = rgba('#4a2e16', 0.7); g.lineWidth = 0.7;
+    // plank joints on a fixed world grid so long borders read as continuous boards
+    if (horiz) { for (let jx = Math.ceil(x / 24) * 24; jx < x + w; jx += 24) { g.beginPath(); g.moveTo(jx, y); g.lineTo(jx, y + h); g.stroke(); } }
+    else { for (let jy = Math.ceil(y / 24) * 24; jy < y + h; jy += 24) { g.beginPath(); g.moveTo(x, jy); g.lineTo(x + w, jy); g.stroke(); } }
+    g.strokeStyle = INK; g.lineWidth = 0.9; g.strokeRect(x, y, w, h);
+  };
+  if (!U) wood(x0, y0, T, B, true);
+  if (!D) wood(x0, y0 + T - B, T, B, true);
+  if (!L) wood(x0, y0, B, T, false);
+  if (!Rt) wood(x0 + T - B, y0, B, T, false);
+  // corner posts: outer corners, plus inner corners where a bed turns (L-shapes)
+  const post = (x, y) => { rrect(g, x - 1, y - 1, B + 2, B + 2, 1.5); g.fillStyle = '#7a4e28'; g.fill(); g.strokeStyle = INK; g.lineWidth = 0.9; g.stroke(); ell(g, x + B / 2, y + B / 2, 1.1, 1.1, '#c8945a'); };
+  if (!U && !L) post(x0, y0);
+  if (!U && !Rt) post(x0 + T - B, y0);
+  if (!D && !L) post(x0, y0 + T - B);
+  if (!D && !Rt) post(x0 + T - B, y0 + T - B);
+  if (U && L && !isP(X - 1, Y - 1)) post(x0, y0);
+  if (U && Rt && !isP(X + 1, Y - 1)) post(x0 + T - B, y0);
+  if (D && L && !isP(X - 1, Y + 1)) post(x0, y0 + T - B);
+  if (D && Rt && !isP(X + 1, Y + 1)) post(x0 + T - B, y0 + T - B);
+  if (sea === 3 && !(S.plots[idx(X, Y)] && S.plots[idx(X, Y)].gh)) { g.fillStyle = rgba('#ffffff', 0.85); for (let k = 0; k < 5; k++) { rrect(g, x0 + 2 + r() * (T - 10), y0 + 1 + (k % 2) * (T - 5), 6 + r() * 6, 3, 1.5); g.fill(); } }
 }
 function renderForest(cx, cy) {
   const fs = R.q.fs, size = CHUNK * T;
@@ -254,6 +290,13 @@ R.onEvent = function (e) {
       addPart({ type: 'float', x, y: y - 20, vy: -28, max: 1.2, icon: e.crop, text: '+' + e.n });
       for (let k = 0; k < 8 * pq; k++) addPart({ type: 'chip', x, y: y - 6, vx: (Math.random() - 0.5) * 80, vy: -50 - Math.random() * 60, g: 260, max: 0.6, col: CROP[e.crop].leaf, size: 2, vr: 8 });
       AUDIO.sfx('pop'); break;
+    }
+    case 'catch': {
+      const w = dockWater(BMAP[e.b] || { x: -9, y: -9 }); if (w < 0) break;
+      const { x, y } = tileC(w);
+      for (let k = 0; k < 10 * pq + 3; k++) addPart({ type: 'drop', x: x + (Math.random() - 0.5) * 14, y: y - 4, vx: (Math.random() - 0.5) * 70, vy: -50 - Math.random() * 50, g: 260, max: 0.6, size: 1.5 });
+      addPart({ type: 'float', x: e.m.x, y: e.m.y - 30, vy: -26, max: 1.4, icon: e.fish, text: '+1' });
+      AUDIO.sfx('splash'); break;
     }
     case 'spent': { const { x, y } = tileC(e.i); for (let k = 0; k < 6 * pq; k++) addPart({ type: 'chip', x, y, vx: (Math.random() - 0.5) * 60, vy: -30 - Math.random() * 30, g: 200, max: 0.6, col: '#a8884a', size: 2 }); break; }
     case 'plant': { const { x, y } = tileC(e.i); for (let k = 0; k < 5 * pq; k++) addPart({ type: 'chip', x, y, vx: (Math.random() - 0.5) * 50, vy: -30 - Math.random() * 30, g: 200, max: 0.5, col: '#7a5232', size: 1.8 }); break; }
@@ -356,6 +399,7 @@ R.draw = function (dt) {
     else drawMeeple(ctx, o.m, t);
   }
 
+  drawFishingLines(ctx);
   drawParticles(ctx, dt);
   drawAmbient(ctx, dt, x0, y0, x1, y1);
   for (const b of S.buildings) if (BUILDINGS[b.type].proc || b.type === 'creator') drawStatus(ctx, b, t);
@@ -462,6 +506,7 @@ function drawBuilding(ctx, b, t, dt) {
   const d = BUILDINGS[b.type];
   const bx = (b.x + d.w / 2) * T, by = (b.y + d.h) * T;
   if (b.type === 'greenhouse') { drawSprite(ctx, greenhouseSprite(ghOpen(b)), bx, by); return; }
+  if (b.type === 'dock') drawPier(ctx, b);
   const s = buildingSprite(b.type);
   const working = b.phase === 'work' || (b.type === 'creator' && b.queue.length);
   ell(ctx, bx + 3, by - d.h * T * 0.4, d.w * T * 0.5, d.h * T * 0.3, 'rgba(20,40,15,0.24)');
@@ -517,6 +562,36 @@ function drawBuilding(ctx, b, t, dt) {
       break;
   }
 }
+// fishing line + bobber, drawn after everything so the pier can't hide them;
+// the bobber sits just past the end of the pier
+function drawFishingLines(ctx) {
+  for (const m of S.meeples) {
+    const t = m.task; if (!t || t.type !== 'fish' || m.path.length || !BMAP[t.b]) continue;
+    const b = BMAP[t.b], w = dockWater(b); if (w < 0) continue;
+    const dx = (w % MW) - b.x, dy = ((w / MW) | 0) - b.y, near = t.bite && t.bite - (t.t || 0) < 0.9;
+    const fx = (w % MW) * T + T / 2 + dx * T * 0.75 + (dy ? (m.id % 3 - 1) * 9 : 0);
+    const fy = ((w / MW) | 0) * T + T / 2 + dy * T * 0.75 + (dx ? (m.id % 3 - 1) * 9 : 0) + (near ? 2.5 : Math.sin(R.time * 3 + m.id) * 1.2);
+    const rx = m.x + m.face * 16, ry = m.y - 28;
+    ctx.beginPath(); ctx.moveTo(rx, ry); ctx.quadraticCurveTo((rx + fx) / 2, Math.max(ry, fy) + 10, fx, fy);
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(fx, fy + 1.5, 4.5 + (near ? 2.5 : 0) + Math.sin(R.time * 2 + m.id) * 0.6, 1.8, 0, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(230,250,255,0.7)'; ctx.lineWidth = 0.9; ctx.stroke();
+    ell(ctx, fx, fy - 1, 2.6, 2.6, '#e8463a', INK, 0.7); ctx.fillStyle = '#fbf8f0'; ctx.fillRect(fx - 2.6, fy - 1, 5.2, 1.8);
+  }
+}
+// planks reaching from the dock tile out over its water tile
+function drawPier(ctx, b) {
+  const w = dockWater(b); if (w < 0) return;
+  const wx = (w % MW) * T, wy = ((w / MW) | 0) * T, dx = (w % MW) - b.x, dy = ((w / MW) | 0) - b.y;
+  const x = dx ? (dx > 0 ? wx - 4 : wx + T * 0.35) : b.x * T + 6, y = dy ? (dy > 0 ? wy - 10 : wy + T * 0.3) : b.y * T + 10;
+  const W = dx ? T * 0.65 : T - 12, H = dy ? T * 0.7 : T - 18;
+  ctx.fillStyle = 'rgba(20,40,60,0.25)'; ctx.fillRect(x + 3, y + 5, W, H);
+  ctx.fillStyle = '#5a3a22'; [[x + 2, y + H - 2], [x + W - 6, y + H - 2]].forEach(([px, py]) => ctx.fillRect(px, py, 4, 8));
+  for (let i = 0; i < (dy ? H : W) / 5; i++) {
+    ctx.fillStyle = i % 2 ? '#b07a42' : '#a8703a';
+    if (dy) ctx.fillRect(x, y + i * 5, W, 5); else ctx.fillRect(x + i * 5, y, 5, H);
+  }
+  ctx.strokeStyle = INK; ctx.lineWidth = 0.9; ctx.strokeRect(x, y, W, H);
+}
 function drawSails(ctx, x, y, rot) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
   for (let k = 0; k < 4; k++) {
@@ -553,6 +628,13 @@ function drawMeeple(ctx, m, t) {
   ctx.scale(m.face, 1);
   if (m.crop !== 'founder') drawSprite(ctx, ART.icons[m.crop], -6, -33, 0.38);
   else { ctx.beginPath(); ctx.ellipse(0, -22.5, 6, 1.6, 0, 0, Math.PI * 2); ctx.fillStyle = '#c8a040'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.6; ctx.stroke(); ctx.beginPath(); ctx.ellipse(0, -24, 3.6, 2.6, 0, Math.PI, 0); ctx.fill(); ctx.stroke(); }
+  const fishing = m.task && m.task.type === 'fish' && !m.path.length && BMAP[m.task.b];
+  if (fishing) {
+    ctx.save(); ctx.scale(m.face, 1);
+    ctx.beginPath(); ctx.moveTo(4, -12); ctx.lineTo(16, -30); ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4, -12); ctx.lineTo(16, -30); ctx.strokeStyle = '#c8945a'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.restore();
+  }
   // watering can in hand while on watering duty
   if (m.task && (m.task.type === 'water' || m.task.type === 'fill')) {
     ctx.save(); ctx.translate(9, -10); if (m.task.type === 'water' && m.act > 0) ctx.rotate(0.6);

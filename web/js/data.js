@@ -159,6 +159,19 @@ const GOODS = [
   { id: 'gin',          name: 'Juniper Gin',      icon: { t: 'bottle', c: '#dff0f4', shape: 'square' } },
   { id: 'soju',         name: 'Rice Soju',        icon: { t: 'bottle', c: '#d8f4e4', shape: 'square' } },
   { id: 'schnapps',     name: 'Peach Schnapps',   icon: { t: 'bottle', c: '#f8c8a0', shape: 'round' } },
+  // from the water
+  { id: 'fishstew',     name: 'Fisherman\'s Stew', icon: { t: 'bowl', c: '#e0a060', b: '#3a6a8a', fish: 1 } },
+  { id: 'chowder',      name: 'Catfish Chowder',  icon: { t: 'bowl', c: '#f4ecd0', b: '#6a4a3a', fish: 1 } },
+  { id: 'fishpie',      name: 'Bass Pie',         icon: { t: 'pie', c: '#e8c890' } },
+  { id: 'fishchips',    name: 'Fish & Chips',     icon: { t: 'fishchips' } },
+  { id: 'fishsauce',    name: 'Fish Sauce',       icon: { t: 'bottle', c: '#a8602a', shape: 'sauce' } },
+  { id: 'caviar',       name: 'Caviar',           icon: { t: 'jar', c: '#22222e', l: '#d8c060' } },
+  { id: 'smokedperch',  name: 'Smoked Perch',     icon: { t: 'smoked', c: '#c89040' } },
+  { id: 'smokedtrout',  name: 'Smoked Trout',     icon: { t: 'smoked', c: '#c8784a' } },
+  { id: 'smokedsalmon', name: 'Smoked Salmon',    icon: { t: 'smoked', c: '#e0704a' } },
+  { id: 'nigiri',       name: 'Salmon Nigiri',    icon: { t: 'sushi', c: '#f08a5a' } },
+  { id: 'troutroll',    name: 'Trout Roll',       icon: { t: 'sushi', c: '#e8987a', roll: 1 } },
+  { id: 'platter',      name: 'Deluxe Platter',   icon: { t: 'sushi', c: '#e0704a', deluxe: 1 } },
 ];
 const GOOD = Object.fromEntries(GOODS.map(g => [g.id, g]));
 
@@ -251,11 +264,51 @@ const RECIPES = [
   { id: 'r_soju',      at: 'still',   in: { sake: 2 },                              out: ['soju', 1],       t: 300,  lvl: 25 },
   { id: 'r_gin',       at: 'still',   in: { vodka: 1, juniper: 4 },                 out: ['gin', 1],        t: 300,  lvl: 29 },
   { id: 'r_schnapps',  at: 'still',   in: { peachnectar: 2 },                       out: ['schnapps', 1],   t: 300,  lvl: 30 },
+  // fish dishes (fishing is optional, so these never block level goals)
+  { id: 'r_fishstew',  at: 'pot',     in: { perch: 2, potato: 2, carrot: 1 },       out: ['fishstew', 1],   t: 70,   lvl: 2 },
+  { id: 'r_chowder',   at: 'pot',     in: { catfish: 1, potato: 2, corn: 1 },       out: ['chowder', 1],    t: 90,   lvl: 20 },
+  { id: 'r_fishpie',   at: 'oven',    in: { flour: 2, bass: 1, potato: 1 },         out: ['fishpie', 1],    t: 100,  lvl: 6 },
+  { id: 'r_fishchips', at: 'oven',    in: { bluegill: 2, potato: 2, sunoil: 1 },    out: ['fishchips', 1],  t: 80,   lvl: 14 },
+  { id: 'r_fishsauce', at: 'crock',   in: { minnow: 6, garlic: 1 },                 out: ['fishsauce', 1],  t: 360,  lvl: 8 },
+  { id: 'r_caviar',    at: 'crock',   in: { sturgeon: 1 },                          out: ['caviar', 2],     t: 300,  lvl: 4 },
+  { id: 'r_smperch',   at: 'smokehouse', in: { perch: 3 },                          out: ['smokedperch', 1],  t: 150, lvl: 3 },
+  { id: 'r_smtrout',   at: 'smokehouse', in: { trout: 2 },                          out: ['smokedtrout', 1],  t: 180, lvl: 3 },
+  { id: 'r_smsalmon',  at: 'smokehouse', in: { salmon: 1 },                         out: ['smokedsalmon', 1], t: 240, lvl: 3 },
+  { id: 'r_nigiri',    at: 'sushi',   in: { salmon: 1, rice: 2 },                   out: ['nigiri', 2],     t: 90,   lvl: 25 },
+  { id: 'r_troutroll', at: 'sushi',   in: { trout: 1, rice: 2, cucumber: 1 },       out: ['troutroll', 2],  t: 90,   lvl: 25 },
+  { id: 'r_platter',   at: 'sushi',   in: { smokedsalmon: 1, caviar: 1, rice: 3 },  out: ['platter', 1],    t: 150,  lvl: 25 },
 ];
 const RECIPE = Object.fromEntries(RECIPES.map(r => [r.id, r]));
 
+// ---------------------------------------------------------------- fish
+// base: catch weight at fishing level 0. minLv: fishing level before it can bite. xp: fishing XP per catch.
+const RARITY = {
+  common:    { name: 'Common',    col: '#8a9a8a', g: -0.02 },
+  uncommon:  { name: 'Uncommon',  col: '#4f9a3a', g: 0.06 },
+  rare:      { name: 'Rare',      col: '#3a7ac8', g: 0.16 },
+  epic:      { name: 'Epic',      col: '#9a4ad8', g: 0.45 },
+  legendary: { name: 'Legendary', col: '#e8a020', g: 0.9 },
+};
+const FISH = [
+  { id: 'minnow',   name: 'Minnow',          rar: 'common',    base: 40,   minLv: 0,  price: 3,   xp: 2,  look: { c: '#a8b8c0', b: '#e8eef0', len: 0.8 } },
+  { id: 'bluegill', name: 'Bluegill',        rar: 'common',    base: 30,   minLv: 0,  price: 6,   xp: 3,  look: { c: '#5a7ab0', b: '#f0a040', round: 1 } },
+  { id: 'perch',    name: 'Yellow Perch',    rar: 'common',    base: 26,   minLv: 0,  price: 8,   xp: 4,  look: { c: '#d8c040', b: '#f4ecb0', bars: '#5a5a2a' } },
+  { id: 'carp',     name: 'Carp',            rar: 'uncommon',  base: 14,   minLv: 0,  price: 12,  xp: 6,  look: { c: '#b88a40', b: '#e8d090', round: 1, scales: 1 } },
+  { id: 'trout',    name: 'Rainbow Trout',   rar: 'uncommon',  base: 10,   minLv: 1,  price: 18,  xp: 8,  look: { c: '#7a9a7a', b: '#f0e8e0', stripe: '#e87a8a', spots: 1 } },
+  { id: 'catfish',  name: 'Catfish',         rar: 'uncommon',  base: 9,    minLv: 1,  price: 20,  xp: 9,  look: { c: '#6a6a5a', b: '#c8c0a8', whiskers: 1, len: 1.15 } },
+  { id: 'bass',     name: 'Largemouth Bass', rar: 'rare',      base: 5,    minLv: 2,  price: 30,  xp: 12, look: { c: '#5a8a3a', b: '#e0e8c0', stripe: '#2a4a1a' } },
+  { id: 'pike',     name: 'Northern Pike',   rar: 'rare',      base: 3,    minLv: 4,  price: 45,  xp: 16, look: { c: '#5a7a3a', b: '#e8e8c0', len: 1.4, spots: 1 } },
+  { id: 'salmon',   name: 'Salmon',          rar: 'epic',      base: 1.6,  minLv: 6,  price: 70,  xp: 25, look: { c: '#7a8aa0', b: '#f0a080', len: 1.2, spots: 1 } },
+  { id: 'sturgeon', name: 'Sturgeon',        rar: 'epic',      base: 0.8,  minLv: 9,  price: 120, xp: 35, look: { c: '#6a6a7a', b: '#b8b8c0', len: 1.5, ridge: 1 } },
+  { id: 'koi',      name: 'Golden Koi',      rar: 'legendary', base: 0.25, minLv: 12, price: 400, xp: 80, look: { c: '#f2a020', b: '#fff6e0', patches: 1, shine: 1 } },
+];
+const FISHMAP = Object.fromEntries(FISH.map(f => [f.id, f]));
+const FISH_LV_MAX = 20;
+const fishXpFor = l => Math.round(40 * Math.pow(l, 1.7));   // total XP needed to reach level l
+
 const ITEM = {};
 CROPS.forEach(c => ITEM[c.id] = { id: c.id, name: c.name, price: c.price, crop: true });
+FISH.forEach(f => ITEM[f.id] = { id: f.id, name: f.name, price: f.price, crop: false, fish: true });
 // goods are worth a markup over their ingredients plus a little for the time they take
 (function priceGoods() {
   const byOut = {}; RECIPES.forEach(r => byOut[r.out[0]] = r);
@@ -279,7 +332,10 @@ const BUILDINGS = {
   path:      { name: 'Cobble Path',     w: 1, h: 1, cost: 8,      grow: 1.0,  lvl: 0,  cat: 'farm',  desc: 'Meeples walk 40% faster on paths.' },
   well:      { name: 'Stone Well',      w: 2, h: 2, cost: 250,    grow: 1.7,  lvl: 0,  cat: 'farm',  max: 10, desc: 'Meeples fill their watering cans here. Watered soil grows crops 60% faster and stays moist for 3 harvests.' },
   scarecrow: { name: 'Scarecrow',       w: 1, h: 1, cost: 600,    grow: 1.4,  lvl: 3,  cat: 'farm',  max: 20, desc: 'Plots within 2 tiles grow 10% faster. Also very handsome.' },
-  greenhouse:{ name: 'Greenhouse',      w: 4, h: 4, cost: 450000, grow: 2.2,  lvl: 24, cat: 'farm',  max: 3, walk: 1, desc: '12 glass-covered plots that grow any crop in any season. Tap it to lift the roof and plant.' },
+  greenhouse:{ name: 'Greenhouse',      w: 4, h: 4, cost: 450000, grow: 2.2,  lvl: 24, cat: 'farm',  max: 3, walk: 1, desc: '12 glass-covered plots that grow 50% faster and never need watering. Tap it to lift the roof and plant.' },
+  dock:      { name: 'Fishing Dock',    w: 1, h: 1, cost: 600,    grow: 2.0,  lvl: 2,  cat: 'water', max: 4, desc: 'Build beside a pond, then give a Meeple the Fish job. Tap it to check catch odds or reel one in yourself.' },
+  smokehouse:{ name: 'Smokehouse',      w: 2, h: 2, cost: 6000,   grow: 2.4,  lvl: 3,  cat: 'water', max: 3, proc: 1, desc: 'Slow oak smoke turns fresh fish into smoked delicacies.' },
+  sushi:     { name: 'Sushi Counter',   w: 2, h: 2, cost: 200000, grow: 2.3,  lvl: 25, cat: 'water', max: 2, proc: 1, desc: 'Rice, fresh fish and a sharp knife: nigiri, rolls and deluxe platters.' },
   storehouse:{ name: 'Storehouse',      w: 2, h: 2, cost: 400,    grow: 2.2,  lvl: 0,  cat: 'core',  max: 4, desc: 'Meeples drop harvests at the nearest storehouse. Build more to shorten trips.' },
   market:    { name: 'Market Stall',    w: 2, h: 2, cost: 0,      grow: 1,    lvl: 0,  cat: 'core',  max: 1, desc: 'Sell goods and buy upgrades.' },
   creator:   { name: 'Meeple Creator',  w: 2, h: 2, cost: 250,    grow: 1,    lvl: 0,  cat: 'core',  max: 1, desc: 'Turns produce into new Meeples. Each crop makes a different kind.' },

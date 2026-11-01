@@ -23,7 +23,7 @@ const inMap = (x, y) => x >= 0 && y >= 0 && x < MW && y < MH;
 function newGame(slot) {
   const seed = (Math.random() * 1e9) | 0;
   S = {
-    v: 2, slot, seed, created: Date.now(), playTime: 0, day: 0.32, lastSeason: 0, weather: { rain: 0, next: 300 },
+    v: 2, slot, seed, created: Date.now(), playTime: 0, day: 0.32, lastSeason: 1, weather: { rain: 0, next: 300 }, fishXP: 0,
     coins: 20, level: 0, won: false, fairSeen: false,
     lifetime: {}, inv: {}, auto: {}, upg: {},
     cover: new Uint8Array(MW * MH), floor: new Uint8Array(MW * MH),
@@ -86,10 +86,12 @@ function makePlot(i, crop, planted, gh) {
 }
 
 // ---------------------------------------------------------------- seasons
-const seasonIdx = () => Math.floor(S.playTime / SEASON_LEN) % 4;
+// Seasons were removed in v1.4 (waiting for a season to unlock a crop took too long).
+// The helpers stay so older code paths keep working: it's always summer and every crop is in season.
+const seasonIdx = () => 1;
 const seasonYear = () => Math.floor(S.playTime / (SEASON_LEN * 4)) + 1;
 const seasonLeft = () => SEASON_LEN - (S.playTime % SEASON_LEN);
-const cropInSeason = (id, sea = seasonIdx()) => CROP[id].sea.includes(sea);
+const cropInSeason = () => true;
 const plotInSeason = p => !!p.gh || cropInSeason(p.crop);
 // first growth uses the full grow time; regrowth on a living plant is quicker
 const growTarget = p => (p.gen | 0) > 0 ? CROP[p.crop].regrow : CROP[p.crop].grow;
@@ -150,7 +152,7 @@ const upg = id => S.upg[id] || 0;
 const mSpeed = m => m.speed * (1 + 0.1 * upg('boots'));
 const mCarry = m => m.carry + upg('basket');
 const mWork = m => m.work * (1 + 0.15 * upg('hands'));
-const growMult = p => (1 + 0.12 * upg('soil')) * p.bonus * (p.wet ? 1.6 : 1);
+const growMult = p => (1 + 0.12 * upg('soil')) * p.bonus * (p.gh ? 1.5 * 1.6 : (p.wet ? 1.6 : 1));
 const canCap = m => 4 + 3 * upg('cans') + Math.floor(m.carry / 2);
 const hasWell = () => S.buildings.some(b => b.type === 'well');
 const craftMult = () => 1 + 0.12 * upg('copper');
@@ -225,6 +227,7 @@ function canPlace(type, x, y, moving) {
     else if (!tileFree(i, true)) return false;
   }
   if (type === 'plot' || type === 'path') return true;
+  if (type === 'dock' && dockWater({ x, y }) < 0) return false;
   if (BUILDINGS[type].walk) {
     for (let yy = 0; yy < d.h; yy++) for (let xx = 0; xx < d.w; xx++) if (GHMAP[idx(x + xx, y + yy)] || S.floor[idx(x + xx, y + yy)] === FLOOR.PLOT) return false;
     return true;
@@ -240,7 +243,7 @@ function wouldBlock(type, x, y, moving) {
   // flood from the largest cleared region adjacent to buildings
   const seen = new Uint8Array(MW * MH);
   const fakeB = { id: -1, type, x, y };
-  const needsAccess = t => t === 'storehouse' || t === 'well' || t === 'market' || t === 'creator' || BUILDINGS[t].proc;
+  const needsAccess = t => t === 'storehouse' || t === 'well' || t === 'dock' || t === 'market' || t === 'creator' || BUILDINGS[t].proc;
   const all = S.buildings.filter(b => (!moving || b.id !== moving.id) && needsAccess(b.type));
   if (needsAccess(type)) all.push(fakeB);
   const accessOf = b => accessTiles(b).filter(walk);
@@ -442,6 +445,7 @@ function needOf(b) {
 }
 function pickTask(m) {
   const s = tileOf(m);
+  if (m.fish) { fisherTask(m); return; }
   if (m.hand.length) { m.task = { type: 'deliver' }; if (!goTo(m, accessSet(['storehouse']))) { m.task = null; m.wait = 1; } return; }
   // 1. collect finished goods
   if (m.haul) {
@@ -489,7 +493,43 @@ function pickTask(m) {
     if (r) { m.path = r.path.slice(0, 3); m.task = { type: 'wander' }; }
   }
 }
-const needsWater = p => p && p.st === 1 && !p.wet && !p.wclaim && plotInSeason(p);
+// ---------------------------------------------------------------- fishing
+// water tile next to a dock (the fishing spot), or -1
+function dockWater(b) {
+  for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1]]) {
+    const x = b.x + dx, y = b.y + dy;
+    if (inMap(x, y) && S.cover[idx(x, y)] === COVER.WATER) return idx(x, y);
+  }
+  return -1;
+}
+function fishLevel() { let l = 0; while (l < FISH_LV_MAX && (S.fishXP || 0) >= fishXpFor(l + 1)) l++; return l; }
+// catch weights at a fishing level: common fish fade a little, rarer fish grow much likelier
+function fishWeights(lv = fishLevel()) {
+  return FISH.map(f => lv < f.minLv ? 0 : Math.max(f.base * 0.3, f.base * (1 + lv * RARITY[f.rar].g)));
+}
+function fishChances(lv = fishLevel()) { const w = fishWeights(lv), tot = w.reduce((a, b) => a + b, 0); return w.map(x => x / tot); }
+function rollFish(lv = fishLevel()) {
+  const w = fishWeights(lv); let r = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < FISH.length; i++) { r -= w[i]; if (r <= 0) return FISH[i].id; }
+  return FISH[0].id;
+}
+// seconds until the next bite; experienced anglers get bites sooner
+const biteTime = () => (16 + Math.random() * 22) / (1 + 0.04 * fishLevel());
+function addFishXP(n) {
+  const before = fishLevel();
+  S.fishXP = (S.fishXP || 0) + n;
+  const after = fishLevel();
+  if (after > before) emit({ t: 'fishlevel', lv: after });
+}
+function fisherTask(m) {
+  if (m.hand.length >= mCarry(m)) { m.task = { type: 'deliver' }; if (!goTo(m, accessSet(['storehouse']))) { m.task = null; m.wait = 1; } return; }
+  const docks = S.buildings.filter(b => b.type === 'dock');
+  const dock = docks.find(b => b.claim === m.id) || docks.find(b => !b.claim);
+  if (dock && goTo(m, accessOfB(dock))) { dock.claim = m.id; m.task = { type: 'fish', b: dock.id, t: 0, bite: 0 }; return; }
+  if (m.hand.length) { m.task = { type: 'deliver' }; if (!goTo(m, accessSet(['storehouse']))) { m.task = null; m.wait = 1; } return; }
+  m.wait = 2; // no free dock: wait for one
+}
+const needsWater = p => p && !p.gh && p.st === 1 && !p.wet && !p.wclaim && plotInSeason(p);
 function waterTask(m, s) {
   if (m.can <= 0) {
     let any = false; for (const k in S.plots) if (needsWater(S.plots[k])) { any = true; break; }
@@ -534,6 +574,20 @@ function arrive(m, dt) {
         m.task = null;
       }
       break;
+    }
+    case 'fish': {
+      const b = BMAP[t.b];
+      if (!b || !m.fish) { if (b && b.claim === m.id) b.claim = 0; m.task = null; break; }
+      if (!t.bite) t.bite = biteTime();
+      const fw = dockWater(b); if (fw >= 0) m.face = (fw % MW) * T + T / 2 >= m.x ? 1 : -1;
+      t.t = (t.t || 0) + dt;
+      if (t.t < t.bite) return;
+      const f = rollFish();
+      m.hand.push(f); emit({ t: 'catch', m, fish: f, b: b.id });
+      addFishXP(FISHMAP[f].xp);
+      t.t = 0; t.bite = biteTime();
+      if (m.hand.length >= mCarry(m)) { b.claim = 0; m.task = null; }
+      return;
     }
     case 'fill': {
       m.act += dt; if (m.act < 1.0) return; m.act = 0;
@@ -737,7 +791,7 @@ function loadGame(slot) {
   migrate(d);
   for (const m of d.meeples) { m.path = []; m.task = null; m.act = 0; m.wait = 0; m.hand = m.hand || []; m.can = m.can || 0; }
   for (const k in d.plots) { const p = d.plots[k]; p.claim = 0; p.wclaim = 0; p.plan = p.plan || {}; p.gen = p.gen | 0; }
-  for (const b of d.buildings) if (BUILDINGS[b.type].proc) { b.transit = {}; b.claim = 0; }
+  for (const b of d.buildings) if (BUILDINGS[b.type].proc) { b.transit = {}; b.claim = 0; } else b.claim = 0;
   S = d;
   rebuildOcc();
   return true;
@@ -756,7 +810,8 @@ function migrate(d) {
     d.weather = { rain: 0, next: 300 };
     d.v = 2;
   }
-  if (d.lastSeason == null) d.lastSeason = Math.floor(d.playTime / SEASON_LEN) % 4;
+  d.lastSeason = 1; // seasons are gone; never trigger a season change on load
+  d.fishXP = d.fishXP || 0;
 }
 function deleteSlot(slot) {
   try { localStorage.removeItem(SAVE_KEY(slot)); } catch (e) { }
