@@ -324,6 +324,7 @@ R.draw = function (dt) {
   }
 
   if (R.clearMode) drawClearHints(ctx, tx0, ty0, tx1, ty1);
+  if (R.paintCrop) drawPaintHints(ctx, x0, y0, x1, y1);
   if (R.sel && R.sel.kind === 'plot') { const px = (R.sel.id % MW) * T, py = ((R.sel.id / MW) | 0) * T; selRing(ctx, px + T / 2, py + T / 2, T * 0.62, T * 0.5); }
   if (R.sel && R.sel.kind === 'b' && BMAP[R.sel.id]) { const b = BMAP[R.sel.id], d = BUILDINGS[b.type]; selRing(ctx, (b.x + d.w / 2) * T, (b.y + d.h / 2) * T, d.w * T * 0.62, d.h * T * 0.5); }
 
@@ -382,6 +383,25 @@ function selRing(ctx, x, y, rx, ry) {
   ctx.setLineDash([6, 5]); ctx.lineDashOffset = -R.time * 20;
   ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
   ctx.strokeStyle = 'rgba(255,248,220,0.95)'; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.restore();
+}
+// planting mode: dashed outline on every plot, a check on plots already growing the chosen crop
+function drawPaintHints(ctx, x0, y0, x1, y1) {
+  ctx.save(); ctx.setLineDash([5, 4]); ctx.lineDashOffset = -R.time * 12; ctx.lineWidth = 2;
+  for (const key in S.plots) {
+    const i = +key, px = (i % MW) * T, py = ((i / MW) | 0) * T;
+    if (px < x0 - T || px > x1 || py < y0 - T || py > y1) continue;
+    const same = S.plots[key].crop === R.paintCrop;
+    rrect(ctx, px + 3, py + 3, T - 6, T - 6, 6); ctx.strokeStyle = same ? 'rgba(160,240,120,0.95)' : 'rgba(255,248,220,0.85)'; ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  for (const key in S.plots) {
+    if (S.plots[key].crop !== R.paintCrop) continue;
+    const i = +key, px = (i % MW) * T, py = ((i / MW) | 0) * T;
+    if (px < x0 - T || px > x1 || py < y0 - T || py > y1) continue;
+    ctx.beginPath(); ctx.arc(px + T - 9, py + 9, 6.5, 0, Math.PI * 2); ctx.fillStyle = '#5aa335'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px + T - 12, py + 9); ctx.lineTo(px + T - 9.5, py + 11.5); ctx.lineTo(px + T - 5.5, py + 6.5); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8; ctx.stroke();
+  }
   ctx.restore();
 }
 function drawClearHints(ctx, tx0, ty0, tx1, ty1) {

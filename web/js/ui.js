@@ -85,7 +85,7 @@ function buildHud() {
   $('hMenu').innerHTML = iconImg('gear');
   $('hMenu').onclick = () => { AUDIO.sfx('click'); openPause(); };
   const tools = [
-    ['build', 'hammer', 'Build'], ['clear', 'axe', 'Clear'], ['market', 'stall', 'Market'],
+    ['build', 'hammer', 'Build'], ['crops', 'soil', 'Crops'], ['clear', 'axe', 'Clear'], ['market', 'stall', 'Market'],
     ['storage', 'barn', 'Storage'], ['meeples', 'meeple', 'Meeples'], ['recipes', 'book', 'Recipes'],
   ];
   $('toolbar').innerHTML = tools.map(([a, ic, l]) => `<button class="btn tool" data-a="${a}">${iconImg(ic)}<span>${l}</span></button>`).join('');
@@ -94,6 +94,7 @@ function buildHud() {
     AUDIO.sfx('click');
     const a = el.dataset.a;
     if (a === 'clear') { setMode(UI.mode === 'clear' ? null : 'clear'); return; }
+    if (a === 'crops' && UI.mode === 'paint') { setMode(null); return; }
     setMode(null);
     if (UI.panel && UI.panel.type === a) closePanel(); else openPanel(a);
   };
@@ -138,13 +139,17 @@ function updateHud() {
     else if (UI.mode === 'place') { const d = BUILDINGS[UI.placeType], cost = bCost(UI.placeType); h = `${iconImg('hammer')} Placing <b>${d.name}</b> <span class="cost ${S.coins < cost ? 'no' : ''}">${iconImg('coin', 'sm')}${fmt(cost)}</span>`; }
     else if (UI.mode === 'move') h = `${iconImg('move')} Tap where the <b>${BUILDINGS[UI.moving.type].name}</b> should go`;
     else if (UI.mode === 'remove') h = `${iconImg('trash')} Tap plots or paths to remove them`;
+    else if (UI.mode === 'paint') h = `${iconImg(UI.paintCrop)} Planting <b>${CROP[UI.paintCrop].name}</b> — tap or drag across plots${cropInSeason(UI.paintCrop) ? '' : ' <span class="s">(rests until its season, except in greenhouses)</span>'} <button class="btn sm" data-a="change">Change</button>`;
     h += ` <button class="btn sm green" data-a="done">Done</button>`;
     if (mb.dataset.h !== h) { mb.innerHTML = h; mb.dataset.h = h; }
     mb.classList.remove('hidden');
   } else mb.classList.add('hidden');
   updateHint();
 }
-$('modebar') && ($('modebar').onclick = e => { if (e.target.closest('[data-a="done"]')) { AUDIO.sfx('click'); setMode(null); } });
+$('modebar') && ($('modebar').onclick = e => {
+  if (e.target.closest('[data-a="done"]')) { AUDIO.sfx('click'); setMode(null); }
+  else if (e.target.closest('[data-a="change"]')) { AUDIO.sfx('click'); openPanel('crops'); }
+});
 
 function setMode(m, extra) {
   UI.mode = m; R.clearMode = m === 'clear'; R.ghost = null;
@@ -152,8 +157,11 @@ function setMode(m, extra) {
   if (m === 'move') { UI.moving = extra; closePanel(); }
   if (m !== 'place') UI.placeType = null;
   if (m !== 'move') UI.moving = null;
+  if (m === 'paint') { UI.paintCrop = extra; closePanel(); }
+  R.paintCrop = m === 'paint' ? UI.paintCrop : null;
   hidePop();
   const tb = $('toolbar').querySelector('[data-a="clear"]'); if (tb) tb.classList.toggle('on', m === 'clear');
+  const tc = $('toolbar').querySelector('[data-a="crops"]'); if (tc) tc.classList.toggle('on', m === 'paint');
 }
 
 // ---------------------------------------------------------------- tutorial hints
@@ -162,7 +170,7 @@ const HINTS = [
   { done: () => S.buildings.some(b => b.type === 'creator'), text: () => `Sell carrots at the <b>Market</b> (tap the coins) and save up <b>${fmt(BUILDINGS.creator.cost)}</b> coins to build a <b>Meeple Creator</b> from the Build menu.` },
   { done: () => S.meeples.length >= 2, text: () => `Tap the <b>Meeple Creator</b> and turn carrots into a brand-new Meeple. Each crop makes a different kind!` },
   { done: () => S.level >= 1, text: () => `Bank <b>25 carrots</b> to unlock Wheat. Use <b>Clear</b> to cut back the brambles and <b>Build</b> more garden plots.` },
-  { done: () => S.buildings.some(b => b.type === 'mill'), text: () => `Wheat unlocked! Plant it in a plot (tap a plot to change its crop), then build a <b>Windmill</b> to grind flour.` },
+  { done: () => S.buildings.some(b => b.type === 'mill'), text: () => `Wheat unlocked! Tap <b>Crops</b>, pick Wheat, then tap the plots you want it in. Build a <b>Windmill</b> to grind flour.` },
   { done: () => S.buildings.some(b => b.type === 'well'), text: () => `Tip: build a <b>Stone Well</b> from the Build menu. Meeples will fill watering cans there, and watered crops grow 60% faster.` },
   { done: () => S.playTime > SEASON_LEN * 0.5 || S.level >= 4, text: () => `Crops only grow in their seasons. Tap a plot to plan what it grows each season — it switches over by itself. Tap the season badge for the almanac.` },
 ];
@@ -313,6 +321,35 @@ PANELS.plot = {
     return h;
   },
 };
+// --- crops picker (choose a crop, then tap plots)
+PANELS.crops = {
+  head: () => `${iconImg('soil', 'lg')}<h2>Crops<small>Pick a crop, then tap or drag across plots to plant it</small></h2>`,
+  sig: () => S.level + ':' + seasonIdx() + ':' + (UI.paintCrop || ''),
+  body: () => {
+    const now = seasonIdx();
+    const cell = (c, L) => {
+      if (L > S.level) return `<div class="cell locked"><div style="font-size:1.6rem;height:2.3rem">🔒</div>Lv ${L + 1}</div>`;
+      const cr = CROP[c], off = !cropInSeason(c, now);
+      return `<div class="cell ${UI.paintCrop === c ? 'sel' : ''} ${off ? 'off' : ''}" data-a="paint" data-v="${c}">${iconImg(c)}${cr.name}<div class="s">${fmtTime(cr.grow)} · ${iconImg('coin', 'sm')}${sellPrice(c)}</div>${seaDots(c)}</div>`;
+    };
+    const all = LEVELS.map((l, L) => [l.crop, L]).filter(x => x[0]);
+    const inS = all.filter(([c, L]) => L <= S.level && cropInSeason(c, now)), outS = all.filter(([c, L]) => L <= S.level && !cropInSeason(c, now)), locked = all.filter(([c, L]) => L > S.level);
+    let h = `<div class="sec">${SEASONS[now].icon} In season now</div><div class="grid">${inS.map(x => cell(...x)).join('')}</div>`;
+    if (outS.length) h += `<div class="sec">Out of season</div><p class="s">These rest outdoors until their season returns, but grow fine in a greenhouse.</p><div class="grid">${outS.map(x => cell(...x)).join('')}</div>`;
+    if (locked.length) h += `<div class="sec">Still to unlock</div><div class="grid">${locked.map(x => cell(...x)).join('')}</div>`;
+    h += `<p class="s">Planting also sets that plot's plan for ${SEASONS[now].name}. Tap a plot normally (outside planting mode) to plan other seasons.</p>`;
+    return h;
+  },
+};
+// plant the selected crop in one plot; returns false if the tile isn't a plot
+function paintPlot(i) {
+  const p = S.plots[i]; if (!p) return false;
+  if (p.crop === UI.paintCrop) return true;
+  setPlotCrop(i, UI.paintCrop);
+  R.onEvent({ t: 'plant', i });
+  AUDIO.sfx('pop');
+  return true;
+}
 // --- greenhouse
 PANELS.greenhouse = {
   valid: p => !!BMAP[p.id],
@@ -558,6 +595,7 @@ $('panel').addEventListener('click', e => {
     case 'opencreator': { const cr = S.buildings.find(b => b.type === 'creator'); if (cr) openPanel('creator', cr.id); return; }
     case 'build': setMode('place', v); toast(`Tap on cleared land to place your ${BUILDINGS[v].name}`, false, 'hammer'); return;
     case 'remove': setMode('remove'); closePanel(); return;
+    case 'paint': setMode('paint', v); return;
     case 'ptab': P.sea = +v; break;
     case 'crop': setPlotCrop(P.id, v, false, S.plots[P.id].gh ? undefined : P.sea); break;
     case 'ghall': case 'ghcrop': {
@@ -610,6 +648,7 @@ function onWorldTap(sx, sy) {
   hidePop();
   const w = R.screenToWorld(sx, sy), t = tileAt(w.x, w.y);
   if (!t) return;
+  if (UI.mode === 'paint') { if (!paintPlot(t.i)) toast('Tap a garden plot to plant ' + CROP[UI.paintCrop].name, true); return; }
   if (UI.mode === 'place') {
     const type = UI.placeType, d = BUILDINGS[type];
     const x = t.x - Math.floor((d.w - 1) / 2), y = t.y - Math.floor((d.h - 1) / 2);
@@ -678,15 +717,21 @@ function onWorldHover(sx, sy) {
 
 // ---------------------------------------------------------------- input (pan / pinch / tap)
 const PTR = new Map();
-let pinch = null, dragMoved = false, downAt = null;
+let pinch = null, dragMoved = false, downAt = null, paintDrag = false;
 function setupInput() {
   const cv = R.cv;
   cv.addEventListener('pointerdown', e => {
     AUDIO.unlock();
-    cv.setPointerCapture(e.pointerId);
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { }
     PTR.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
-    if (PTR.size === 1) { dragMoved = false; downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; onWorldHover(e.clientX, e.clientY); }
-    if (PTR.size === 2) { const [a, b] = [...PTR.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: R.cam.z, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; dragMoved = true; }
+    if (PTR.size === 1) {
+      dragMoved = false; downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; onWorldHover(e.clientX, e.clientY);
+      // in planting mode, a drag that starts on a plot plants along the way instead of panning
+      const w = R.screenToWorld(e.clientX, e.clientY), t = tileAt(w.x, w.y);
+      paintDrag = UI.mode === 'paint' && UI.inGame && !UI.paused && !!t && !!S.plots[t.i];
+      if (paintDrag) { paintPlot(t.i); dragMoved = true; }
+    }
+    if (PTR.size === 2) { paintDrag = false; const [a, b] = [...PTR.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: R.cam.z, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; dragMoved = true; }
   });
   cv.addEventListener('pointermove', e => {
     const p = PTR.get(e.pointerId);
@@ -694,6 +739,7 @@ function setupInput() {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
     p.x = e.clientX; p.y = e.clientY;
     if (PTR.size === 1) {
+      if (paintDrag) { const w = R.screenToWorld(p.x, p.y), t = tileAt(w.x, w.y); if (t) paintPlot(t.i); return; }
       if (Math.hypot(p.x - p.sx, p.y - p.sy) > 9) dragMoved = true;
       if (dragMoved) { R.cam.x -= dx / R.cam.z; R.cam.y -= dy / R.cam.z; R.clampCam(); hidePop(); }
     } else if (PTR.size === 2 && pinch) {
@@ -713,7 +759,7 @@ function setupInput() {
     PTR.delete(e.pointerId);
     if (PTR.size < 2) pinch = null;
     if (PTR.size === 0 && !dragMoved && downAt && performance.now() - downAt.t < 600 && UI.inGame && !UI.paused) onWorldTap(e.clientX, e.clientY);
-    if (PTR.size === 0) downAt = null;
+    if (PTR.size === 0) { downAt = null; paintDrag = false; }
   };
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', e => { PTR.delete(e.pointerId); pinch = null; downAt = null; });
@@ -865,7 +911,7 @@ function openSettings(fromPause) {
 function openHelp(fromPause) {
   modal(`<h2>How to Play</h2><div style="text-align:left" class="p">
     <p>${iconImg('meeple', 'sm')} <b>Meeples</b> do the work: they plant, harvest and haul everything to the <b>storehouse</b> on their own.</p>
-    <p>${iconImg('soil', 'sm')} <b>Tap a plot</b> to choose its crop for each season. Build more plots from <b>Build</b>.</p>
+    <p>${iconImg('soil', 'sm')} Tap <b>Crops</b>, pick a crop, then tap or drag across plots to plant it. Tap a plot on its own to plan its crop for each season. Build more plots from <b>Build</b>.</p>
     <p>🌸 <b>Seasons</b> last 2 hours each. Crops only grow in their seasons and rest the rest of the year. The <b>Greenhouse</b> (late game) grows anything, any time.</p>
     <p>${iconImg('can', 'sm')} Build a <b>Stone Well</b> and Meeples will fill watering cans there. Watered crops grow 60% faster; rain waters them for free.</p>
     <p>${iconImg('axe', 'sm')} The meadow is overgrown. Use <b>Clear</b> (or tap a tree) to pay for clearing land next to open ground. Further out costs more.</p>
