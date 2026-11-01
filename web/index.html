@@ -200,7 +200,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
   </div>
   <div class="menu" id="mainMenu"></div>
 </div>
-<div class="ver">v1.1.1</div>
+<div class="ver">v1.1.2</div>
 
 <div id="hud" class="hidden">
   <div class="topbar">
@@ -235,12 +235,15 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
       (v && v < 70 ? 'Your tablet\'s <b>Android System WebView</b> is version ' + v + ', which is too old. Open the Play Store, search for <b>Android System WebView</b>, tap <b>Update</b>, then reopen the game.<br><br>' : '') +
       'Error details (send these to whoever is fixing it):</div>' +
       '<pre style="white-space:pre-wrap;font-size:.75rem;background:rgba(0,0,0,.3);padding:.8rem;border-radius:.6rem;max-width:90vw;text-align:left;user-select:text;-webkit-user-select:text">' +
-      String(msg).replace(/</g, '&lt;') + '\n\nWebView: Chrome ' + v + '\n' + navigator.userAgent.replace(/</g, '&lt;') + '</pre>';
+      String(msg).replace(/</g, '&lt;') + '\n\nSteps: ' + (window.__stage || []).join(' > ') + (window.__artPct != null ? ' (art ' + window.__artPct + '%)' : '') +
+      '\nreadyState=' + document.readyState + ' visibility=' + document.visibilityState + ' size=' + innerWidth + 'x' + innerHeight +
+      '\nWebView: Chrome ' + v + '\n' + navigator.userAgent.replace(/</g, '&lt;') + '</pre>';
   }
   window.__bootError = function (e) { show((e && (e.stack || e.message)) || e); };
   window.addEventListener('error', function (e) { show((e.message || 'Script error') + (e.filename ? '\n' + e.filename.split('/').pop() + ':' + e.lineno : '')); });
   window.addEventListener('unhandledrejection', function (e) { show(e.reason && (e.reason.stack || e.reason.message) || e.reason); });
-  setTimeout(function () { if (!window.__booted) show('Still loading after 45 seconds (no error was reported).'); }, 45000);
+  setTimeout(function () { if (!window.__booted) show('Still loading after 30 seconds (no error was reported).'); }, 30000);
+  window.__stage = ['page start'];
 })();
 </script>
 <script src="js/data.js"></script>

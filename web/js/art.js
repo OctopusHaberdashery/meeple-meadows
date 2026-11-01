@@ -900,6 +900,14 @@ function buildArt() {
   }
 }
 // Same as buildArt, but yields to the browser so a loading bar can update on slow tablets.
+// Yield to the browser without timers (timers can be throttled in a WebView that isn't "visible" yet).
+function yieldNow() {
+  return new Promise(res => {
+    let done = false; const fin = () => { if (!done) { done = true; res(); } };
+    try { const ch = new MessageChannel(); ch.port1.onmessage = fin; ch.port2.postMessage(0); } catch (e) { }
+    setTimeout(fin, 50);
+  });
+}
 async function buildArtAsync(onProgress) {
   ART.sprites = {}; ART.icons = {};
   const jobs = [];
@@ -907,7 +915,7 @@ async function buildArtAsync(onProgress) {
   Object.keys(UI_ICON).forEach(id => jobs.push(() => { ART.icons['ui_' + id] = makeSprite(32, 32, 0, 0, g => UI_ICON[id](g), { S: 3, edge: 1.3 }); }));
   for (let i = 0; i < jobs.length; i++) {
     jobs[i]();
-    if (i % 8 === 7) { onProgress(i / jobs.length); await new Promise(r => setTimeout(r, 0)); }
+    if (i % 8 === 7) { onProgress(i / jobs.length); await yieldNow(); }
   }
   for (const k in ART.icons) ART.iconURL[k] = ART.icons[k].c.toDataURL();
 }
@@ -915,3 +923,4 @@ function iconImg(id, cls = '') {
   const u = ART.iconURL[id] || ART.iconURL['ui_' + id];
   return u ? `<img class="ico ${cls}" src="${u}" alt="">` : '';
 }
+;(window.__stage = window.__stage || []).push('art.js loaded');

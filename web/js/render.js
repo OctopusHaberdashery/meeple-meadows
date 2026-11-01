@@ -737,3 +737,4 @@ function drawLights(ctx, night, t) {
 }
 R.drawCoverLabels = drawCoverLabels;
 R.meepleSprites = {};
+;(window.__stage = window.__stage || []).push('render.js loaded');

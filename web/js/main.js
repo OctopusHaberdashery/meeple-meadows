@@ -86,21 +86,34 @@ window.onAppPause = appPause;
 window.onAppResume = appResume;
 window.addEventListener('resize', () => { if (R.ready) R.resize(); });
 
+const stage = s => window.__stage.push(s);
 async function boot() {
-  const bar = p => { const el = $('loading'); if (el) el.firstChild.textContent = 'Planting seeds… ' + Math.round(p * 100) + '%'; };
-  loadSettings();
+  const bar = p => { const el = $('loading'); if (el && el.firstChild) el.firstChild.textContent = 'Planting seeds… ' + Math.round(p * 100) + '%'; window.__artPct = Math.round(p * 100); };
+  stage('boot start');
+  loadSettings(); stage('settings');
   ART.S = (QUALITY[SET.quality] || QUALITY.medium).art;
   R.q = QUALITY[SET.quality] || QUALITY.medium;
-  await buildArtAsync(p => bar(p * 0.9));
-  bar(0.95); await new Promise(r => setTimeout(r, 0));
-  R.init($('game'));
-  setupInput();
-  applySettings();
-  toTitle();
+  await buildArtAsync(p => bar(p * 0.9)); stage('art built');
+  bar(0.95); await yieldNow();
+  R.init($('game')); stage('renderer ' + R.W + 'x' + R.H);
+  setupInput(); stage('input');
+  applySettings(); stage('settings applied');
+  toTitle(); stage('title');
   $('loading').remove();
   window.__booted = true;
   $('title').classList.remove('hidden');
   lastFrame = performance.now();
   requestAnimationFrame(frame);
 }
-window.addEventListener('load', () => setTimeout(() => boot().catch(e => window.__bootError && window.__bootError(e)), 30));
+// Start as soon as the scripts are in (they sit at the end of <body>), not on window 'load',
+// which some Android WebViews never deliver for local files.
+let _bootStarted = false;
+function startBoot(why) {
+  if (_bootStarted) return; _bootStarted = true; stage('start via ' + why);
+  boot().catch(e => window.__bootError && window.__bootError(e));
+}
+if (document.readyState !== 'loading') setTimeout(() => startBoot('ready'), 0);
+document.addEventListener('DOMContentLoaded', () => startBoot('domcontentloaded'));
+window.addEventListener('load', () => startBoot('load'));
+setTimeout(() => startBoot('fallback'), 300);
+;(window.__stage = window.__stage || []).push('main.js loaded');

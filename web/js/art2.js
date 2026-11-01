@@ -663,3 +663,4 @@ function greenhouseSprite(open) {
   ART.sprites[key] = s;
   return s;
 }
+;(window.__stage = window.__stage || []).push('art2.js loaded');

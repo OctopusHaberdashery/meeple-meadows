@@ -876,3 +876,4 @@ function openHelp(fromPause) {
     <p>👆 Drag to look around, pinch to zoom. The game only progresses while it's open.</p></div>
     <div class="btns"><button class="btn green" data-a="ok">Got it</button></div>`, () => { if (fromPause) openPause(); else closeModal(); });
 }
+;(window.__stage = window.__stage || []).push('ui.js loaded');

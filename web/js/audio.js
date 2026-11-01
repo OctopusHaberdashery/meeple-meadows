@@ -121,3 +121,4 @@ AUDIO.tick = function (night) {
     AUDIO.nextBeat += beat; AUDIO.step++;
   }
 };
+;(window.__stage = window.__stage || []).push('audio.js loaded');

@@ -748,3 +748,4 @@ function migrate(d) {
   if (d.lastSeason == null) d.lastSeason = Math.floor(d.playTime / SEASON_LEN) % 4;
 }
 function deleteSlot(slot) { try { localStorage.removeItem(SAVE_KEY(slot)); if (window.AndroidBridge && AndroidBridge.backup) AndroidBridge.backup(slot, ''); } catch (e) { } }
+;(window.__stage = window.__stage || []).push('world.js loaded');

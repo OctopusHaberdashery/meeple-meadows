@@ -332,3 +332,4 @@ const MEEPLE_NAMES = ('Pip Bean Tuck Moss Fern Clem Dot Hob Juno Kip Lark Mabel 
 
 // v1 saves stored levels by this crop order; used to migrate them.
 const V1_LEVEL_CROPS = ['carrot', 'wheat', 'potato', 'cabbage', 'sugarbeet', 'strawberry', 'garlic', 'chili', 'barley', 'hops', 'apple', 'blueberry', 'corn', 'grapes', 'pumpkin', 'juniper', 'juniper'];
+;(window.__stage = window.__stage || []).push('data.js loaded');
