@@ -15,7 +15,7 @@
 html{font-size:16px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{margin:0;height:100%;overflow:hidden;background:#284a2a;font-family:var(--font);color:var(--ink);touch-action:none;overscroll-behavior:none}
-canvas#game{position:fixed;inset:0;display:block;touch-action:none}
+canvas#game{position:fixed;top:0;right:0;bottom:0;left:0;display:block;touch-action:none}
 .ico{width:1.6rem;height:1.6rem;vertical-align:middle;object-fit:contain;pointer-events:none}
 .ico.sm{width:1.2rem;height:1.2rem}.ico.lg{width:2.4rem;height:2.4rem}.ico.xl{width:3.4rem;height:3.4rem}
 .hidden{display:none!important}
@@ -35,7 +35,7 @@ canvas#game{position:fixed;inset:0;display:block;touch-action:none}
 .btn.wide{width:100%}
 
 /* ---------- title */
-#title{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:30;
+#title{position:fixed;top:0;right:0;bottom:0;left:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:30;
   background:radial-gradient(ellipse at center,rgba(255,240,200,.0) 30%,rgba(30,20,10,.45) 100%)}
 .logo{text-align:center;margin-bottom:1.6rem;animation:float 4s ease-in-out infinite}
 .logo h1{margin:0;font-size:clamp(2.6rem,8vw,5.2rem);font-weight:900;letter-spacing:.02em;color:#fff6dc;line-height:.95;
@@ -52,7 +52,7 @@ canvas#game{position:fixed;inset:0;display:block;touch-action:none}
 .ver{position:fixed;bottom:.5rem;right:.8rem;color:#fff6dc;opacity:.7;font-size:.75rem;font-weight:700;z-index:31}
 
 /* ---------- hud */
-#hud{position:fixed;inset:0;pointer-events:none;z-index:10}
+#hud{position:fixed;top:0;right:0;bottom:0;left:0;pointer-events:none;z-index:10}
 #hud > *{pointer-events:auto}
 .topbar{position:absolute;top:calc(.5rem + env(safe-area-inset-top));left:calc(.5rem + env(safe-area-inset-left));right:calc(.5rem + env(safe-area-inset-right));display:flex;gap:.5rem;align-items:flex-start;pointer-events:none}
 .topbar > *{pointer-events:auto}
@@ -89,7 +89,7 @@ canvas#game{position:fixed;inset:0;display:block;touch-action:none}
 #panel{position:fixed;top:calc(4.6rem + env(safe-area-inset-top));right:calc(.6rem + env(safe-area-inset-right));bottom:calc(6.6rem + env(safe-area-inset-bottom));width:min(27rem,94vw);z-index:20;
   display:flex;flex-direction:column;background:var(--paper);border:2.5px solid var(--ink);border-radius:1.2rem;box-shadow:0 .3rem 0 var(--ink),0 .8rem 1.6rem var(--shadow);
   animation:slidein .18s ease-out}
-#panel::before{content:"";position:absolute;inset:.35rem;border:1.5px dashed rgba(106,74,50,.45);border-radius:.9rem;pointer-events:none}
+#panel::before{content:"";position:absolute;top:.35rem;right:.35rem;bottom:.35rem;left:.35rem;border:1.5px dashed rgba(106,74,50,.45);border-radius:.9rem;pointer-events:none}
 @keyframes slidein{from{transform:translateX(1.5rem);opacity:0}to{transform:none;opacity:1}}
 .ph{display:flex;align-items:center;gap:.5rem;padding:.7rem .8rem .5rem;border-bottom:2px solid rgba(61,42,31,.15)}
 .ph h2{margin:0;font-size:1.25rem;font-weight:900;flex:1;line-height:1.1}
@@ -149,16 +149,16 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
 .toast{background:var(--paper);border:2px solid var(--ink);border-radius:2rem;padding:.35rem .9rem .35rem .4rem;font-weight:800;display:flex;align-items:center;gap:.4rem;box-shadow:0 .2rem 0 var(--ink),0 .4rem .8rem var(--shadow);animation:toastin .25s ease-out}
 .toast.bad{background:#fbe0d8}
 @keyframes toastin{from{transform:translateY(-.8rem) scale(.9);opacity:0}to{transform:none;opacity:1}}
-#modal{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(30,20,10,.55);animation:fade .2s}
+#modal{position:fixed;top:0;right:0;bottom:0;left:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(30,20,10,.55);animation:fade .2s}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 .mbox{position:relative;background:var(--paper);border:3px solid var(--ink);border-radius:1.4rem;padding:1.2rem 1.4rem;max-width:min(34rem,92vw);max-height:88vh;overflow:auto;box-shadow:0 .35rem 0 var(--ink),0 1rem 2rem rgba(0,0,0,.4);text-align:center;touch-action:pan-y}
-.mbox::before{content:"";position:absolute;inset:.4rem;border:1.5px dashed rgba(106,74,50,.45);border-radius:1rem;pointer-events:none}
+.mbox::before{content:"";position:absolute;top:.4rem;right:.4rem;bottom:.4rem;left:.4rem;border:1.5px dashed rgba(106,74,50,.45);border-radius:1rem;pointer-events:none}
 .mbox h2{margin:.2rem 0 .6rem;font-size:1.6rem;font-weight:900}
 .mbox .btns{display:flex;gap:.6rem;justify-content:center;margin-top:1rem;flex-wrap:wrap}
 .burst{animation:burst 1s ease-out}
 @keyframes burst{0%{transform:scale(.3) rotate(-20deg)}60%{transform:scale(1.15) rotate(6deg)}100%{transform:scale(1)}}
 .slot{display:flex;align-items:center;gap:.7rem;text-align:left}
-.loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#2f5a2c;color:#fff6dc;font-weight:900;font-size:1.4rem;z-index:100}
+.loading{flex-direction:column;text-align:center;padding:1.5rem;position:fixed;top:0;right:0;bottom:0;left:0;display:flex;align-items:center;justify-content:center;background:#2f5a2c;color:#fff6dc;font-weight:900;font-size:1.4rem;z-index:100}
 
 .seasonpill{line-height:1.05;font-size:.9rem;padding:.2rem .7rem .2rem .35rem;cursor:pointer}
 .seasonpill small{font-size:.68rem;font-weight:800;color:var(--ink2)}
@@ -190,7 +190,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
 </head>
 <body>
 <canvas id="game"></canvas>
-<div class="loading" id="loading">Planting seeds…</div>
+<div class="loading" id="loading"><span>Planting seeds…</span></div>
 
 <div id="title" class="hidden">
   <div class="logo">
@@ -200,7 +200,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
   </div>
   <div class="menu" id="mainMenu"></div>
 </div>
-<div class="ver">v1.1</div>
+<div class="ver">v1.1.1</div>
 
 <div id="hud" class="hidden">
   <div class="topbar">
@@ -221,6 +221,28 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
 <div id="toasts"></div>
 <div id="modal" class="hidden"></div>
 
+<script>
+// Startup safety net, deliberately old-style JavaScript so it works on any WebView.
+(function () {
+  var shown = false;
+  function chromeVer() { var m = /Chrome\/(\d+)/.exec(navigator.userAgent); return m ? +m[1] : 0; }
+  function show(msg) {
+    if (shown || window.__booted) return; shown = true;
+    var el = document.getElementById('loading'); if (!el) return;
+    var v = chromeVer();
+    el.innerHTML = '<span>Oh no, the seeds didn\'t sprout.</span>' +
+      '<div style="font-size:.9rem;font-weight:700;max-width:34rem;margin-top:1rem;line-height:1.4">' +
+      (v && v < 70 ? 'Your tablet\'s <b>Android System WebView</b> is version ' + v + ', which is too old. Open the Play Store, search for <b>Android System WebView</b>, tap <b>Update</b>, then reopen the game.<br><br>' : '') +
+      'Error details (send these to whoever is fixing it):</div>' +
+      '<pre style="white-space:pre-wrap;font-size:.75rem;background:rgba(0,0,0,.3);padding:.8rem;border-radius:.6rem;max-width:90vw;text-align:left;user-select:text;-webkit-user-select:text">' +
+      String(msg).replace(/</g, '&lt;') + '\n\nWebView: Chrome ' + v + '\n' + navigator.userAgent.replace(/</g, '&lt;') + '</pre>';
+  }
+  window.__bootError = function (e) { show((e && (e.stack || e.message)) || e); };
+  window.addEventListener('error', function (e) { show((e.message || 'Script error') + (e.filename ? '\n' + e.filename.split('/').pop() + ':' + e.lineno : '')); });
+  window.addEventListener('unhandledrejection', function (e) { show(e.reason && (e.reason.stack || e.reason.message) || e.reason); });
+  setTimeout(function () { if (!window.__booted) show('Still loading after 45 seconds (no error was reported).'); }, 45000);
+})();
+</script>
 <script src="js/data.js"></script>
 <script src="js/art.js"></script>
 <script src="js/art2.js"></script>

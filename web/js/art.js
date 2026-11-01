@@ -145,7 +145,7 @@ function lgrad(g, x0, y0, x1, y1, stops) {
   return gr;
 }
 function rgrad(g, x, y, r, stops, fx, fy) {
-  const gr = g.createRadialGradient(fx ?? x, fy ?? y, 0, x, y, r);
+  const gr = g.createRadialGradient(fx != null ? fx : x, fy != null ? fy : y, 0, x, y, r);
   stops.forEach((c, i) => gr.addColorStop(i / (stops.length - 1), c));
   return gr;
 }
@@ -898,6 +898,18 @@ function buildArt() {
   if (!Object.keys(ART.iconURL).length) {
     for (const k in ART.icons) ART.iconURL[k] = ART.icons[k].c.toDataURL();
   }
+}
+// Same as buildArt, but yields to the browser so a loading bar can update on slow tablets.
+async function buildArtAsync(onProgress) {
+  ART.sprites = {}; ART.icons = {};
+  const jobs = [];
+  [...CROPS.map(c => c.id), ...GOODS.map(g => g.id)].forEach(id => jobs.push(() => { ART.icons[id] = makeSprite(32, 32, 0, 0, g => drawIcon(g, id), { S: 3, edge: 1.3 }); }));
+  Object.keys(UI_ICON).forEach(id => jobs.push(() => { ART.icons['ui_' + id] = makeSprite(32, 32, 0, 0, g => UI_ICON[id](g), { S: 3, edge: 1.3 }); }));
+  for (let i = 0; i < jobs.length; i++) {
+    jobs[i]();
+    if (i % 8 === 7) { onProgress(i / jobs.length); await new Promise(r => setTimeout(r, 0)); }
+  }
+  for (const k in ART.icons) ART.iconURL[k] = ART.icons[k].c.toDataURL();
 }
 function iconImg(id, cls = '') {
   const u = ART.iconURL[id] || ART.iconURL['ui_' + id];

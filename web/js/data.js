@@ -1,6 +1,8 @@
 // Meeple Meadows — game data: crops, goods, recipes, buildings, levels, upgrades.
 'use strict';
 
+if (!Object.fromEntries) Object.fromEntries = function (it) { const o = {}; for (const [k, v] of it) o[k] = v; return o; };
+
 // One knob to stretch or shrink the whole progression curve (level requirements).
 const PACE = 1.0;
 

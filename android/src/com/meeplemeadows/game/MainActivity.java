@@ -35,6 +35,7 @@ public class MainActivity extends Activity {
             getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
 
+        WebView.setWebContentsDebuggingEnabled(true); // lets chrome://inspect see the game over USB
         web = new WebView(this);
         web.setBackgroundColor(Color.rgb(0x2f, 0x5a, 0x2c));
         WebSettings s = web.getSettings();

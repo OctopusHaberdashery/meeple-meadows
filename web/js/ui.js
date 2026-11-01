@@ -288,7 +288,7 @@ const seaDots = c => '<span class="sdots">' + SEASONS.map((S2, i) => `<i style="
 PANELS.plot = {
   valid: p => !!S.plots[p.id],
   head: p => { const pl = S.plots[p.id]; return `${iconImg(pl.crop, 'lg')}<h2>${pl.gh ? 'Greenhouse Plot' : 'Garden Plot'}<small>Growing ${CROP[pl.crop].name}</small></h2>`; },
-  sig: p => { const pl = S.plots[p.id]; return pl.crop + pl.st + S.level + JSON.stringify(pl.plan) + (p.sea ?? '') + seasonIdx(); },
+  sig: p => { const pl = S.plots[p.id]; return pl.crop + pl.st + S.level + JSON.stringify(pl.plan) + (p.sea != null ? p.sea : '') + seasonIdx(); },
   body: p => {
     const pl = S.plots[p.id], cr = CROP[pl.crop], now = seasonIdx();
     if (p.sea == null) p.sea = now;
@@ -590,7 +590,7 @@ $('panel').addEventListener('click', e => {
     }
     case 'mk': if (queueMeeple(v)) { toast('A ' + CROP[v].name + ' Meeple is on the way!', false, v); AUDIO.sfx('buy'); } else toast('Not enough ' + CROP[v].name, true); break;
     case 'sell': { const [id, n] = v.split(':'); const got = sell(id, n === 'all' ? 1e12 : +n); if (got) { AUDIO.sfx('coin'); } break; }
-    case 'auto': { const cur = S.auto[v] ?? null, i = AUTO_STEPS.indexOf(cur), nx = AUTO_STEPS[(i + 1) % AUTO_STEPS.length]; if (nx == null) delete S.auto[v]; else S.auto[v] = nx; break; }
+    case 'auto': { const cur = S.auto[v] != null ? S.auto[v] : null, i = AUTO_STEPS.indexOf(cur), nx = AUTO_STEPS[(i + 1) % AUTO_STEPS.length]; if (nx == null) delete S.auto[v]; else S.auto[v] = nx; break; }
     case 'upg': { const u = UPGRADES.find(x => x.id === v); if (buyUpgrade(u)) { toast(u.name + ' upgraded!', false, 'ui_' + u.icon); AUDIO.sfx('buy'); } break; }
     case 'mfarm': case 'mhaul': case 'mwater': {
       const m = S.meeples.find(x => x.id == v), key = { mfarm: 'farm', mhaul: 'haul', mwater: 'water' }[a];

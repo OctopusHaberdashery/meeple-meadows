@@ -86,18 +86,21 @@ window.onAppPause = appPause;
 window.onAppResume = appResume;
 window.addEventListener('resize', () => { if (R.ready) R.resize(); });
 
-function boot() {
+async function boot() {
+  const bar = p => { const el = $('loading'); if (el) el.firstChild.textContent = 'Planting seeds… ' + Math.round(p * 100) + '%'; };
   loadSettings();
   ART.S = (QUALITY[SET.quality] || QUALITY.medium).art;
   R.q = QUALITY[SET.quality] || QUALITY.medium;
-  buildArt();
+  await buildArtAsync(p => bar(p * 0.9));
+  bar(0.95); await new Promise(r => setTimeout(r, 0));
   R.init($('game'));
   setupInput();
   applySettings();
   toTitle();
   $('loading').remove();
+  window.__booted = true;
   $('title').classList.remove('hidden');
   lastFrame = performance.now();
   requestAnimationFrame(frame);
 }
-window.addEventListener('load', () => setTimeout(boot, 30));
+window.addEventListener('load', () => setTimeout(() => boot().catch(e => window.__bootError && window.__bootError(e)), 30));

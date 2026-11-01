@@ -329,7 +329,7 @@ function setPlotCrop(i, crop, fromPlan, planSeason) {
   const p = S.plots[i]; if (!p || !cropUnlocked(crop)) return;
   if (!fromPlan) {
     _lastCrop = crop;
-    if (!p.gh) { p.plan = p.plan || {}; p.plan[planSeason ?? seasonIdx()] = crop; }
+    if (!p.gh) { p.plan = p.plan || {}; p.plan[planSeason != null ? planSeason : seasonIdx()] = crop; }
     if (planSeason != null && planSeason !== seasonIdx() && !p.gh) return;
   }
   if (p.crop === crop) return;
@@ -646,7 +646,7 @@ function update(dt) {
       if (b.t >= 20) {
         b.t = 0;
         const crop = b.queue.shift();
-        const acc = accessTiles(b).filter(walkable)[0] ?? idx(b.x, b.y + 2);
+        const acc0 = accessTiles(b).filter(walkable)[0], acc = acc0 != null ? acc0 : idx(b.x, b.y + 2);
         const m = makeMeeple(crop, (acc % MW) * T + T / 2, ((acc / MW) | 0) * T + T / 2);
         S.meeples.push(m); S.stats.made++;
         emit({ t: 'meeple', m });
