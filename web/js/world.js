@@ -43,6 +43,7 @@ function newGame(slot) {
   const m = makeMeeple('founder', CX * T + T / 2, CY * T + T / 2);
   m.name = 'Pip';
   S.meeples.push(m);
+  initExtras(S); recalcJB();
   return S;
 }
 
@@ -106,6 +107,7 @@ function addBuilding(type, x, y, free) {
   if (type === 'creator') Object.assign(b, { queue: [], t: 0 });
   S.buildings.push(b);
   BMAP[b.id] = b;
+  if (type === 'coop' || type === 'barn' || type === 'hive') { const r = RECIPES.find(x => x.at === type && recipeUnlocked(x)); if (r) setRecipe(b, r.id); }
   if (!free) S.built[type] = (S.built[type] || 0) + 1;
   return b;
 }
@@ -122,11 +124,12 @@ function rebuildOcc() {
   if (window.R && R.ready) R.groundDirtyAll();
 }
 function computePlotBonus() {
-  const crows = S.buildings.filter(b => b.type === 'scarecrow');
+  const crows = S.buildings.filter(b => b.type === 'scarecrow'), hives = S.buildings.filter(b => b.type === 'hive');
   for (const k in S.plots) {
     const i = +k, x = i % MW, y = (i / MW) | 0;
     let m = 1;
     if (crows.some(w => Math.max(Math.abs(x - w.x), Math.abs(y - w.y)) <= 2)) m *= 1.1;
+    if (hives.some(w => Math.max(Math.abs(x - w.x), Math.abs(y - w.y)) <= 3)) m *= 1.15;
     S.plots[k].bonus = m;
   }
 }
@@ -149,14 +152,14 @@ function makeMeeple(crop, x, y) {
 
 // ---------------------------------------------------------------- derived stats
 const upg = id => S.upg[id] || 0;
-const mSpeed = m => m.speed * (1 + 0.1 * upg('boots'));
+const mSpeed = m => m.speed * (1 + 0.1 * upg('boots') + JB.walk);
 const mCarry = m => m.carry + upg('basket');
 const mWork = m => m.work * (1 + 0.15 * upg('hands'));
-const growMult = p => (1 + 0.12 * upg('soil')) * p.bonus * (p.gh ? 1.5 * 1.6 : (p.wet ? 1.6 : 1));
+const growMult = p => (1 + 0.12 * upg('soil') + JB.grow) * legacyMult() * p.bonus * (p.gh ? 1.5 * 1.6 : (p.wet ? 1.6 : 1));
 const canCap = m => 4 + 3 * upg('cans') + Math.floor(m.carry / 2);
 const hasWell = () => S.buildings.some(b => b.type === 'well');
-const craftMult = () => 1 + 0.12 * upg('copper');
-const sellPrice = id => Math.max(1, Math.round(ITEM[id].price * (1 + 0.1 * upg('haggle'))));
+const craftMult = () => 1 + 0.12 * upg('copper') + JB.craft;
+const sellPrice = id => Math.max(1, Math.round(ITEM[id].price * (1 + 0.1 * upg('haggle') + JB.sell) * legacyMult()));
 const cropUnlocked = id => LEVELS.findIndex(l => l.crop === id) <= S.level;
 const bUnlocked = t => BUILDINGS[t].lvl <= S.level;
 const recipeUnlocked = r => r.lvl <= S.level;
@@ -164,6 +167,7 @@ function bCount(type) { return S.buildings.filter(b => b.type === type).length; 
 function bCost(type) {
   const d = BUILDINGS[type];
   if (type === 'plot') { let n = 0; for (const k in S.plots) if (!S.plots[k].gh) n++; return Math.round(d.cost * Math.pow(d.grow, Math.max(0, n - 9))); }
+  if (d.found) return 0;
   return Math.round(d.cost * Math.pow(d.grow, S.built[type] || 0));
 }
 function upgCost(u) { return Math.round(u.base * Math.pow(u.mul, upg(u.id))); }
@@ -199,6 +203,7 @@ function sell(id, n) {
   S.inv[id] -= n;
   const v = sellPrice(id) * n;
   S.coins += v; S.stats.sold += n; S.stats.earned += v;
+  S.soldBy[id] = (S.soldBy[id] || 0) + v;
   return v;
 }
 
@@ -211,6 +216,7 @@ function doClear(i) {
   S.cover[i] = COVER.NONE; S.stats.cleared++;
   emit({ t: 'clear', i, kind });
   if (window.R && R.ready) R.groundDirty(i);
+  rollFind(i, kind, c);
   return true;
 }
 function tileFree(i, allowPath) {
@@ -265,9 +271,11 @@ function place(type, x, y) {
   if (!bUnlocked(type) || !canPlace(type, x, y)) return false;
   const d = BUILDINGS[type];
   if (d.max && bCount(type) >= d.max) return false;
+  if (d.found && !(S.found[type] > 0)) return false;
   const cost = bCost(type);
   if (S.coins < cost) return false;
   S.coins -= cost;
+  if (d.found) S.found[type]--;
   const i = idx(x, y);
   if (type === 'plot') { makePlot(i, lastPlotCrop(), false); S.built.plot = (S.built.plot || 0) + 1; computePlotBonus(); }
   else if (type === 'path') { S.floor[i] = FLOOR.PATH; }
@@ -313,7 +321,8 @@ function demolish(b) {
     }
   }
   S.buildings = S.buildings.filter(o => o !== b);
-  S.coins += Math.round(bCost(b.type) / BUILDINGS[b.type].grow * 0.3);
+  if (BUILDINGS[b.type].found) S.found[b.type] = (S.found[b.type] || 0) + 1;
+  else S.coins += Math.round(bCost(b.type) / BUILDINGS[b.type].grow * 0.3);
   if (S.built[b.type]) S.built[b.type]--;
   rebuildOcc();
   for (const m of S.meeples) if (m.task && m.task.b === b.id) dropTask(m);
@@ -491,6 +500,7 @@ function pickTask(m) {
   if (Math.random() < 0.5) {
     const r = bfs(s, i => i !== s && hash2(i, (S.playTime * 10) | 0, 7) < 0.04, 4);
     if (r) { m.path = r.path.slice(0, 3); m.task = { type: 'wander' }; }
+    if (S.buildings.some(b => (b.type === 'flowers' || b.type === 'fountain' || b.type === 'bench') && Math.abs(b.x * T - m.x) < T * 3 && Math.abs(b.y * T - m.y) < T * 3)) emote(m, 'heart', 0.25);
   }
 }
 // ---------------------------------------------------------------- fishing
@@ -514,7 +524,7 @@ function rollFish(lv = fishLevel()) {
   return FISH[0].id;
 }
 // seconds until the next bite; experienced anglers get bites sooner
-const biteTime = () => (16 + Math.random() * 22) / (1 + 0.04 * fishLevel());
+const biteTime = () => (16 + Math.random() * 22) / (1 + 0.04 * fishLevel() + JB.fish);
 function addFishXP(n) {
   const before = fishLevel();
   S.fishXP = (S.fishXP || 0) + n;
@@ -559,11 +569,13 @@ function arrive(m, dt) {
       m.act = 0; p.claim = 0;
       if (t.type === 'harvest') {
         let n = 1; if (Math.random() < 0.08 * upg('yield')) n = 2;
+        if (p.fert > 0) { if (Math.random() < FERT_DOUBLE) n++; p.fert--; }
         for (let k = 0; k < n; k++) m.hand.push(p.crop);
         emit({ t: 'harvest', i: t.plot, crop: p.crop, n });
+        if (n > 1) emote(m, 'wow', 0.5);
         p.gen = (p.gen | 0) + 1; p.t = 0; p.wet = Math.max(0, (p.wet | 0) - 1);
-        if (CROP[p.crop].harvests && p.gen >= CROP[p.crop].harvests) { p.st = 0; p.gen = 0; emit({ t: 'spent', i: t.plot }); }
-        else p.st = 1;
+        if (CROP[p.crop].harvests && p.gen >= CROP[p.crop].harvests) { p.st = 0; p.gen = 0; addCompost(1); emit({ t: 'spent', i: t.plot }); }
+        else { p.st = 1; if (tryFertilize(p)) emit({ t: 'fert', i: t.plot }); }
         if (m.hand.length < mCarry(m)) {
           const r = bfs(tileOf(m), i => { const q = S.plots[i]; return q && q.st === 2 && !q.claim; }, 7);
           if (r) { S.plots[r.goal].claim = m.id; m.task = { type: 'harvest', plot: r.goal }; m.path = r.path; return; }
@@ -571,6 +583,7 @@ function arrive(m, dt) {
         m.task = null;
       } else {
         p.st = 1; p.t = 0; p.gen = 0; emit({ t: 'plant', i: t.plot });
+        if (tryFertilize(p)) emit({ t: 'fert', i: t.plot });
         m.task = null;
       }
       break;
@@ -582,8 +595,9 @@ function arrive(m, dt) {
       const fw = dockWater(b); if (fw >= 0) m.face = (fw % MW) * T + T / 2 >= m.x ? 1 : -1;
       t.t = (t.t || 0) + dt;
       if (t.t < t.bite) return;
-      const f = rollFish();
-      m.hand.push(f); emit({ t: 'catch', m, fish: f, b: b.id });
+      const f = rollFish(), sz = recordCatch(f);
+      m.hand.push(f); emit({ t: 'catch', m, fish: f, b: b.id, cm: sz.cm, rec: sz.rec });
+      if (FISHMAP[f].rar !== 'common') emote(m, 'wow', FISHMAP[f].rar === 'uncommon' ? 0.3 : 1);
       addFishXP(FISHMAP[f].xp);
       t.t = 0; t.bite = biteTime();
       if (m.hand.length >= mCarry(m)) { b.claim = 0; m.task = null; }
@@ -713,6 +727,7 @@ function update(dt) {
     }
   }
   for (const m of S.meeples) updateMeeple(m, dt);
+  updateExtras(dt);
   // auto-sell
   _autoT += dt;
   if (_autoT > 2) {
@@ -742,6 +757,7 @@ function checkLevel() {
     const lv = LEVELS[nx];
     if (lv.fair) { S.won = true; emit({ t: 'fair' }); }
     else emit({ t: 'level', crop: lv.crop, level: nx });
+    for (const m of S.meeples) emote(m, 'heart', 0.8);
   }
 }
 
@@ -752,7 +768,7 @@ function serialize() {
     ...S,
     cover: Array.from(S.cover).join(''),
     floor: Array.from(S.floor).join(''),
-    meeples: S.meeples.map(m => ({ ...m, path: [], task: null, act: 0 })),
+    meeples: S.meeples.map(m => ({ ...m, path: [], task: null, act: 0, emo: null })),
     buildings: S.buildings,
     savedAt: Date.now(),
   });
@@ -793,6 +809,7 @@ function loadGame(slot) {
   for (const k in d.plots) { const p = d.plots[k]; p.claim = 0; p.wclaim = 0; p.plan = p.plan || {}; p.gen = p.gen | 0; }
   for (const b of d.buildings) if (BUILDINGS[b.type].proc) { b.transit = {}; b.claim = 0; } else b.claim = 0;
   S = d;
+  recalcJB();
   rebuildOcc();
   return true;
 }
@@ -812,6 +829,7 @@ function migrate(d) {
   }
   d.lastSeason = 1; // seasons are gone; never trigger a season change on load
   d.fishXP = d.fishXP || 0;
+  initExtras(d);
 }
 function deleteSlot(slot) {
   try { localStorage.removeItem(SAVE_KEY(slot)); } catch (e) { }

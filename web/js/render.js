@@ -170,7 +170,7 @@ function renderGround(cx, cy) {
       continue;
     }
     if (fl === FLOOR.PATH) { drawPathTile(g, X, Y, x0, y0, r, sea); continue; }
-    if (fl === FLOOR.PLOT) { drawPlotTile(g, X, Y, x0, y0, r, sea); continue; }
+    if (fl === FLOOR.PLOT) { drawPlotTile(g, X, Y, x0, y0, r); continue; }
     if (cov) {
       for (let k = 0; k < 6; k++) ell(g, x0 + r() * T, y0 + r() * T, 2.2, 1.2, rgba(P.litter[k % P.litter.length], 0.55));
       continue;
@@ -203,26 +203,25 @@ function drawPathTile(g, X, Y, x0, y0, r, sea) {
 }
 // Touching plots merge into one big bed: soil runs straight across shared edges and a plank
 // border frames only the outside of the bed, with posts on the corners.
-function drawPlotTile(g, X, Y, x0, y0, r, sea) {
-  const isP = (x, y) => inMap(x, y) && S.floor[idx(x, y)] === FLOOR.PLOT;
-  const L = isP(X - 1, Y), Rt = isP(X + 1, Y), U = isP(X, Y - 1), D = isP(X, Y + 1);
-  const B = 6;
-  const sx0 = x0 + (L ? 0 : B), sy0 = y0 + (U ? 0 : B), sx1 = x0 + T - (Rt ? 0 : B), sy1 = y0 + T - (D ? 0 : B);
-  // soil
-  g.fillStyle = lgrad(g, 0, y0, 0, y0 + T, ['#76502f', '#6a4426', '#5e3c22']);
-  g.fillRect(sx0, sy0, sx1 - sx0, sy1 - sy0);
-  // furrows at fixed world rows so they line up across neighbouring tiles
-  for (let k = 0; k < 4; k++) {
-    const yy = y0 + 9 + k * 10;
-    if (yy < sy0 + 2 || yy > sy1 - 2) continue;
-    g.fillStyle = rgba('#3a2412', 0.5); g.fillRect(sx0, yy, sx1 - sx0, 1.6);
-    g.fillStyle = rgba('#a87a4a', 0.45); g.fillRect(sx0, yy - 1.6, sx1 - sx0, 1.2);
-  }
-  for (let k = 0; k < 6; k++) ell(g, sx0 + 3 + r() * (sx1 - sx0 - 6), sy0 + 3 + r() * (sy1 - sy0 - 6), 0.9, 0.7, '#b8a080');
+const isPlotTile = (x, y) => inMap(x, y) && S.floor[idx(x, y)] === FLOOR.PLOT;
+// the soil area of a plot tile in world units, plus which sides have a border
+function soilRect(X, Y) {
+  const B = 6, x0 = X * T, y0 = Y * T, L = isPlotTile(X - 1, Y), Rt = isPlotTile(X + 1, Y), U = isPlotTile(X, Y - 1), D = isPlotTile(X, Y + 1);
+  return { x: x0 + (L ? 0 : B), y: y0 + (U ? 0 : B), x1: x0 + T - (Rt ? 0 : B), y1: y0 + T - (D ? 0 : B), L, Rt, U, D };
+}
+function drawPlotTile(g, X, Y, x0, y0, r) {
+  const sr = soilRect(X, Y), { L, Rt, U, D } = sr, B = 6;
+  const sx0 = sr.x - X * T + x0, sy0 = sr.y - Y * T + y0, sx1 = sr.x1 - X * T + x0, sy1 = sr.y1 - Y * T + y0;
+  // dry earth; one pattern per chunk canvas, lined up to the world grid
+  if (!g._soil) g._soil = soilPattern(g, false);
+  g.fillStyle = g._soil; g.fillRect(sx0, sy0, sx1 - sx0, sy1 - sy0);
   // shadow the soil just inside each border
-  g.fillStyle = 'rgba(30,15,5,0.28)';
+  g.fillStyle = 'rgba(30,15,5,0.3)';
   if (!U) g.fillRect(sx0, sy0, sx1 - sx0, 3);
   if (!L) g.fillRect(sx0, sy0, 3, sy1 - sy0);
+  g.fillStyle = 'rgba(30,15,5,0.12)';
+  if (!U) g.fillRect(sx0, sy0 + 3, sx1 - sx0, 3);
+  if (!L) g.fillRect(sx0 + 3, sy0, 3, sy1 - sy0);
   // plank borders on outside edges
   const wood = (x, y, w, h, horiz) => {
     g.fillStyle = horiz ? lgrad(g, 0, y, 0, y + h, ['#c8945a', '#a8743e', '#8a5a2e']) : lgrad(g, x, 0, x + w, 0, ['#c8945a', '#a8743e', '#8a5a2e']);
@@ -243,11 +242,10 @@ function drawPlotTile(g, X, Y, x0, y0, r, sea) {
   if (!U && !Rt) post(x0 + T - B, y0);
   if (!D && !L) post(x0, y0 + T - B);
   if (!D && !Rt) post(x0 + T - B, y0 + T - B);
-  if (U && L && !isP(X - 1, Y - 1)) post(x0, y0);
-  if (U && Rt && !isP(X + 1, Y - 1)) post(x0 + T - B, y0);
-  if (D && L && !isP(X - 1, Y + 1)) post(x0, y0 + T - B);
-  if (D && Rt && !isP(X + 1, Y + 1)) post(x0 + T - B, y0 + T - B);
-  if (sea === 3 && !(S.plots[idx(X, Y)] && S.plots[idx(X, Y)].gh)) { g.fillStyle = rgba('#ffffff', 0.85); for (let k = 0; k < 5; k++) { rrect(g, x0 + 2 + r() * (T - 10), y0 + 1 + (k % 2) * (T - 5), 6 + r() * 6, 3, 1.5); g.fill(); } }
+  if (U && L && !isPlotTile(X - 1, Y - 1)) post(x0, y0);
+  if (U && Rt && !isPlotTile(X + 1, Y - 1)) post(x0 + T - B, y0);
+  if (D && L && !isPlotTile(X - 1, Y + 1)) post(x0, y0 + T - B);
+  if (D && Rt && !isPlotTile(X + 1, Y + 1)) post(x0 + T - B, y0 + T - B);
 }
 function renderForest(cx, cy) {
   const fs = R.q.fs, size = CHUNK * T;
@@ -295,9 +293,17 @@ R.onEvent = function (e) {
       const w = dockWater(BMAP[e.b] || { x: -9, y: -9 }); if (w < 0) break;
       const { x, y } = tileC(w);
       for (let k = 0; k < 10 * pq + 3; k++) addPart({ type: 'drop', x: x + (Math.random() - 0.5) * 14, y: y - 4, vx: (Math.random() - 0.5) * 70, vy: -50 - Math.random() * 50, g: 260, max: 0.6, size: 1.5 });
-      addPart({ type: 'float', x: e.m.x, y: e.m.y - 30, vy: -26, max: 1.4, icon: e.fish, text: '+1' });
+      addPart({ type: 'float', x: e.m.x, y: e.m.y - 30, vy: -26, max: 1.6, icon: e.fish, text: (e.rec ? '★ ' : '') + (e.cm ? e.cm + 'cm' : '+1') });
       AUDIO.sfx('splash'); break;
     }
+    case 'find': {
+      const { x, y } = tileC(e.i);
+      const icon = e.what === 'coins' ? 'ui_coin' : e.what === 'produce' ? e.id : e.what === 'relic' ? 'ui_relic_' + e.id : e.what === 'lure' ? 'minnow' : e.what === 'hat' ? 'ui_hat_flower' : 'ui_star';
+      for (let k = 0; k < 14; k++) addPart({ type: 'spark', x: x + (Math.random() - 0.5) * 30, y: y - 10 - Math.random() * 24, max: 1.1, size: 6 });
+      addPart({ type: 'float', x: x + 8, y: y - 26, vy: -22, max: 2.2, icon, text: e.n && e.what !== 'lure' ? '+' + fmt(e.n) : '!' });
+      AUDIO.sfx('ding'); break;
+    }
+    case 'fert': { const { x, y } = tileC(e.i); for (let k = 0; k < 7 * pq + 2; k++) addPart({ type: 'chip', x: x + (Math.random() - 0.5) * 24, y: y - 4, vx: (Math.random() - 0.5) * 40, vy: -40 - Math.random() * 30, g: 220, max: 0.6, col: k % 3 ? '#4a3020' : '#7cc24a', size: 1.6 }); break; }
     case 'spent': { const { x, y } = tileC(e.i); for (let k = 0; k < 6 * pq; k++) addPart({ type: 'chip', x, y, vx: (Math.random() - 0.5) * 60, vy: -30 - Math.random() * 30, g: 200, max: 0.6, col: '#a8884a', size: 2 }); break; }
     case 'plant': { const { x, y } = tileC(e.i); for (let k = 0; k < 5 * pq; k++) addPart({ type: 'chip', x, y, vx: (Math.random() - 0.5) * 50, vy: -30 - Math.random() * 30, g: 200, max: 0.5, col: '#7a5232', size: 1.8 }); break; }
     case 'water': { const { x, y } = tileC(e.i); for (let k = 0; k < 12 * pq + 3; k++) addPart({ type: 'drop', x: x + (Math.random() - 0.5) * 30, y: y - 18 - Math.random() * 6, vx: (Math.random() - 0.5) * 30, vy: 10 + Math.random() * 20, g: 300, max: 0.45, size: 1.4 }); AUDIO.sfx('water'); break; }
@@ -358,14 +364,21 @@ R.draw = function (dt) {
       ctx.beginPath(); ctx.moveTo(wx - 6 - a * 3, wy); ctx.quadraticCurveTo(wx, wy - 2, wx + 6 + a * 3, wy); ctx.stroke();
     }
   }
-  // wet soil
-  ctx.fillStyle = 'rgba(40,24,10,0.32)';
+  // watered soil: dark, glossy earth fades in over the dry texture (and back out as it dries)
+  if (!R.wetPat) R.wetPat = soilPattern(ctx, true);
+  const WA = R.wetA, fade = Math.min(1, dt * 2.5);
   for (const key in S.plots) {
-    const p = S.plots[key]; if (!p.wet) continue;
-    const i = +key, px = (i % MW) * T, py = ((i / MW) | 0) * T;
-    if (px < x0 - T || px > x1 || py < y0 - T || py > y1) continue;
-    rrect(ctx, px + 5, py + 5, T - 10, T - 10, 3); ctx.fill();
+    const p = S.plots[key], i = +key, X = i % MW, Y = (i / MW) | 0;
+    const want = p.gh ? 1 : p.wet ? 0.62 + 0.13 * Math.min(3, +p.wet) : 0;
+    const a = WA[key] == null ? want : WA[key] + (want - WA[key]) * fade; WA[key] = a;
+    if (a < 0.02 || X * T < x0 - T || X * T > x1 || Y * T < y0 - T || Y * T > y1) continue;
+    const sr = soilRect(X, Y);
+    ctx.globalAlpha = a; ctx.fillStyle = R.wetPat; ctx.fillRect(sr.x, sr.y, sr.x1 - sr.x, sr.y1 - sr.y);
+    ctx.fillStyle = 'rgba(20,10,4,0.3)';
+    if (!sr.U) ctx.fillRect(sr.x, sr.y, sr.x1 - sr.x, 3);
+    if (!sr.L) ctx.fillRect(sr.x, sr.y, 3, sr.y1 - sr.y);
   }
+  ctx.globalAlpha = 1;
 
   if (R.clearMode) drawClearHints(ctx, tx0, ty0, tx1, ty1);
   if (R.paintCrop) drawPaintHints(ctx, x0, y0, x1, y1);
@@ -551,6 +564,39 @@ function drawBuilding(ctx, b, t, dt) {
     case 'barrel': case 'crock': case 'dryer':
       if (working) { const ph = (t * 0.7 + b.id) % 1; ell(ctx, bx + 8, by - (b.type === 'barrel' ? 52 : 62) - ph * 10, 1.8, 1.8, rgba('#fffaf0', 0.8 * (1 - ph))); }
       break;
+    case 'coop':
+      for (let k = 0; k < 3; k++) {
+        const ph = t * 0.32 + k * 2.3 + b.id, hx = bx - 26 + k * 24 + Math.sin(ph) * 9, hy = by - 5 + Math.cos(ph * 0.7) * 3;
+        drawHen(ctx, hx, hy, Math.cos(ph) > 0 ? 1 : -1, Math.sin(t * 3 + k * 1.7) > 0.3, k === 1 ? '#c8783a' : '#fbf6ec');
+      }
+      break;
+    case 'barn': {
+      const ph = t * 0.12 + b.id;
+      drawCow(ctx, bx - 22 + Math.sin(ph) * 8, by - 2, Math.cos(ph) > 0 ? 1 : -1, t + b.id);
+      break;
+    }
+    case 'hive':
+      for (let k = 0; k < 4; k++) drawBee(ctx, bx + Math.cos(t * 1.9 + k * 1.6) * (13 + k * 3), by - 34 + Math.sin(t * 2.7 + k * 2) * 9, t + k);
+      break;
+    case 'compost':
+      if (S.compost && S.compost.mat >= COMPOST_PER && Math.random() < 0.04 * pq) addPart({ type: 'steam', x: bx + (Math.random() - 0.5) * 16, y: by - 38, vy: -10, max: 1.8, size: 4 });
+      break;
+    case 'fountain':
+      for (let k = 0; k < 8; k++) {
+        const ph = (t * 0.9 + k / 8) % 1, ang = k / 8 * Math.PI * 2, dx = Math.cos(ang) * 22 * ph, dy = Math.sin(ang) * 8 * ph;
+        ell(ctx, bx + dx, by - 68 + dy - Math.sin(ph * Math.PI) * 10 + ph * 34, 1.2, 1.6, rgba('#d8f0ff', 0.9 * (1 - ph * 0.6)));
+      }
+      for (let k = 0; k < 2; k++) { const ph = (t * 0.5 + k * 0.5) % 1; ctx.beginPath(); ctx.ellipse(bx, by - 30, 10 + ph * 22, 3.6 + ph * 7, 0, 0, Math.PI * 2); ctx.strokeStyle = rgba('#e8fbff', 0.5 * (1 - ph)); ctx.lineWidth = 1; ctx.stroke(); }
+      break;
+    case 'noticeboard': {
+      const n = S.orders ? S.orders.length : 0, ready = n && S.orders.some(canFill);
+      if (n) {
+        const y = by - 82 + Math.sin(t * 4) * (ready ? 2 : 0);
+        ctx.beginPath(); ctx.arc(bx + 14, y, 7.5, 0, Math.PI * 2); ctx.fillStyle = ready ? '#5aa335' : '#e8a02a'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ready ? '✓' : String(n), bx + 14, y + 0.5);
+      }
+      break;
+    }
     case 'creator':
       if (working) {
         const a = 0.5 + 0.5 * Math.sin(t * 5);
@@ -615,9 +661,10 @@ function flame(ctx, x, y, t, s) {
   }
 }
 function drawMeeple(ctx, m, t) {
-  let spr = R.meepleSprites[m.col];
-  if (!spr) spr = R.meepleSprites[m.col] = meepleSprite(m.col);
   const moving = m.moving;
+  const fr = moving ? Math.floor(m.bob * 11 / (Math.PI * 2) * MEEPLE_RUN_FRAMES) % MEEPLE_RUN_FRAMES : -1, key = m.col + fr;
+  let spr = R.meepleSprites[key];
+  if (!spr) spr = R.meepleSprites[key] = meepleSprite(m.col, null, fr);
   const bob = moving ? Math.abs(Math.sin(m.bob * 11)) * 3.2 : (m.act > 0 ? Math.abs(Math.sin(m.bob * 14)) * 2 : Math.sin(m.bob * 2) * 0.6);
   const tilt = moving ? Math.sin(m.bob * 11) * 0.09 : 0;
   ell(ctx, m.x, m.y + 2, 9 - bob * 0.5, 3.5, 'rgba(20,30,10,0.3)');
@@ -625,9 +672,10 @@ function drawMeeple(ctx, m, t) {
   const sq = moving ? 1 + Math.sin(m.bob * 22) * 0.03 : 1;
   ctx.scale(m.face / sq, sq);
   drawSprite(ctx, spr, 0, 0);
+  if (m.hat && HAT_DRAW[m.hat]) drawSprite(ctx, hatSprite(m.hat), 0, -17.6);
   ctx.scale(m.face, 1);
-  if (m.crop !== 'founder') drawSprite(ctx, ART.icons[m.crop], -6, -33, 0.38);
-  else { ctx.beginPath(); ctx.ellipse(0, -22.5, 6, 1.6, 0, 0, Math.PI * 2); ctx.fillStyle = '#c8a040'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.6; ctx.stroke(); ctx.beginPath(); ctx.ellipse(0, -24, 3.6, 2.6, 0, Math.PI, 0); ctx.fill(); ctx.stroke(); }
+  // a little badge of the crop they were made from
+  if (m.crop !== 'founder' && ART.icons[m.crop]) drawSprite(ctx, ART.icons[m.crop], -4.4, -13.6, 0.27);
   const fishing = m.task && m.task.type === 'fish' && !m.path.length && BMAP[m.task.b];
   if (fishing) {
     ctx.save(); ctx.scale(m.face, 1);
@@ -646,6 +694,7 @@ function drawMeeple(ctx, m, t) {
     for (let k = 0; k < n; k++) drawSprite(ctx, ART.icons[m.hand[k]], m.x - 9 + (k % 2) * 4, m.y - 40 - bob - k * 5, 0.42);
     if (m.hand.length > 4) { ctx.font = 'bold 8px sans-serif'; ctx.fillStyle = '#fffaf0'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeText('×' + m.hand.length, m.x + 10, m.y - 44 - bob); ctx.fillText('×' + m.hand.length, m.x + 10, m.y - 44 - bob); }
   }
+  if (m.emo) drawEmote(ctx, m.x + 9, m.y - 27 - bob, m.emo.k, Math.max(0, Math.min(1, m.emo.t * 2, (2.4 - m.emo.t) * 5)));
   if (R.sel && R.sel.kind === 'm' && R.sel.id === m.id) {
     selRing(ctx, m.x, m.y + 2, 14, 6);
     ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
@@ -680,11 +729,15 @@ function drawStatus(ctx, b, t) {
   if (mode === 'done') { ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI * 2); ctx.strokeStyle = '#5aa335'; ctx.lineWidth = 3.5; ctx.stroke(); }
   if (icon) { ctx.globalAlpha = mode === 'gather' || mode === 'paused' ? 0.55 : 1; drawSprite(ctx, ART.icons[icon], x - 10, y - 10, 0.62); ctx.globalAlpha = 1; }
   if (mode === 'gather') {
-    const r = RECIPE[b.recipe];
-    for (const k in r.in) if ((b.got[k] || 0) + (b.transit[k] || 0) < r.in[k] && !(S.inv[k] > 0)) {
-      ctx.beginPath(); ctx.arc(x + 13, y - 10, 7, 0, Math.PI * 2); ctx.fillStyle = '#e8463a'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', x + 13, y - 9.5);
-      break;
+    const miss = missingOf(b);
+    if (miss.length) {
+      // a speech bubble with the missing ingredient; it wobbles once the building has been stuck a while
+      const stuck = (b.stuckT || 0) > STUCK_AFTER, qx = x + 24, qy = y - 16 + (stuck ? Math.sin(t * 5) * 1.5 : 0);
+      ctx.beginPath(); ctx.moveTo(qx - 8, qy + 7); ctx.lineTo(qx - 17, qy + 13); ctx.lineTo(qx - 3, qy + 10); ctx.closePath(); ctx.fillStyle = '#fff6f0'; ctx.fill(); ctx.strokeStyle = '#c8302a'; ctx.lineWidth = 1.6; ctx.stroke();
+      rrect(ctx, qx - 12, qy - 12, 24, 22, 8); ctx.fillStyle = '#fff6f0'; ctx.fill(); ctx.stroke();
+      drawSprite(ctx, ART.icons[miss[0]], qx - 9, qy - 10, 0.56);
+      ctx.beginPath(); ctx.arc(qx + 10, qy - 10, 5.5, 0, Math.PI * 2); ctx.fillStyle = '#e8463a'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.8; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', qx + 10, qy - 9.6);
     }
   }
 }
@@ -841,4 +894,5 @@ function drawLights(ctx, night, t) {
 }
 R.drawCoverLabels = drawCoverLabels;
 R.meepleSprites = {};
+R.wetA = {};
 ;(window.__stage = window.__stage || []).push('render.js loaded');

@@ -172,6 +172,14 @@ const GOODS = [
   { id: 'nigiri',       name: 'Salmon Nigiri',    icon: { t: 'sushi', c: '#f08a5a' } },
   { id: 'troutroll',    name: 'Trout Roll',       icon: { t: 'sushi', c: '#e8987a', roll: 1 } },
   { id: 'platter',      name: 'Deluxe Platter',   icon: { t: 'sushi', c: '#e0704a', deluxe: 1 } },
+  // from the barnyard
+  { id: 'frittata',     name: 'Garden Frittata',  icon: { t: 'pan', c: '#f2d24a' } },
+  { id: 'cheese',       name: 'Farmhouse Cheese', icon: { t: 'cheese', c: '#f2cc5a' } },
+  { id: 'custard',      name: 'Vanilla Custard',  icon: { t: 'pie', c: '#f6e08a', open: 1 } },
+  { id: 'honeycake',    name: 'Honey Cake',       icon: { t: 'cake', c: '#e8a83a' } },
+  { id: 'quiche',       name: 'Cheese Quiche',    icon: { t: 'pie', c: '#eec860', open: 1 } },
+  { id: 'mead',         name: 'Honey Mead',       icon: { t: 'mug', c: '#e8b040' } },
+  { id: 'milktea',      name: 'Honey Milk Tea',   icon: { t: 'cup', c: '#d8b890', foam: 1 } },
 ];
 const GOOD = Object.fromEntries(GOODS.map(g => [g.id, g]));
 
@@ -277,6 +285,19 @@ const RECIPES = [
   { id: 'r_nigiri',    at: 'sushi',   in: { salmon: 1, rice: 2 },                   out: ['nigiri', 2],     t: 90,   lvl: 25 },
   { id: 'r_troutroll', at: 'sushi',   in: { trout: 1, rice: 2, cucumber: 1 },       out: ['troutroll', 2],  t: 90,   lvl: 25 },
   { id: 'r_platter',   at: 'sushi',   in: { smokedsalmon: 1, caviar: 1, rice: 3 },  out: ['platter', 1],    t: 150,  lvl: 25 },
+  // barnyard (animals are optional, so these never block level goals)
+  { id: 'r_eggs',      at: 'coop',    in: { wheat: 3 },                             out: ['eggs', 2],       t: 80,   lvl: 3 },
+  { id: 'r_eggs2',     at: 'coop',    in: { corn: 2 },                              out: ['eggs', 3],       t: 80,   lvl: 20 },
+  { id: 'r_milk',      at: 'barn',    in: { wheat: 4 },                             out: ['milk', 2],       t: 100,  lvl: 6 },
+  { id: 'r_milk2',     at: 'barn',    in: { barley: 3 },                            out: ['milk', 3],       t: 100,  lvl: 12 },
+  { id: 'r_honey',     at: 'hive',    in: {},                                       out: ['honey', 1],      t: 150,  lvl: 5 },
+  { id: 'r_frittata',  at: 'pot',     in: { eggs: 3, potato: 2 },                   out: ['frittata', 1],   t: 60,   lvl: 3 },
+  { id: 'r_cheese',    at: 'crock',   in: { milk: 4 },                              out: ['cheese', 1],     t: 360,  lvl: 6 },
+  { id: 'r_honeycake', at: 'oven',    in: { flour: 2, honey: 2, eggs: 1 },          out: ['honeycake', 1],  t: 100,  lvl: 6 },
+  { id: 'r_custard',   at: 'oven',    in: { eggs: 2, milk: 2, sugar: 1 },           out: ['custard', 1],    t: 80,   lvl: 7 },
+  { id: 'r_quiche',    at: 'oven',    in: { flour: 2, eggs: 2, cheese: 1 },         out: ['quiche', 1],     t: 100,  lvl: 7 },
+  { id: 'r_mead',      at: 'barrel',  in: { honey: 5 },                             out: ['mead', 1],       t: 900,  lvl: 13 },
+  { id: 'r_milktea',   at: 'teahouse',in: { tealeaves: 1, milk: 1, honey: 1 },      out: ['milktea', 1],    t: 90,   lvl: 19 },
 ];
 const RECIPE = Object.fromEntries(RECIPES.map(r => [r.id, r]));
 
@@ -290,25 +311,34 @@ const RARITY = {
   legendary: { name: 'Legendary', col: '#e8a020', g: 0.9 },
 };
 const FISH = [
-  { id: 'minnow',   name: 'Minnow',          rar: 'common',    base: 40,   minLv: 0,  price: 3,   xp: 2,  look: { c: '#a8b8c0', b: '#e8eef0', len: 0.8 } },
-  { id: 'bluegill', name: 'Bluegill',        rar: 'common',    base: 30,   minLv: 0,  price: 6,   xp: 3,  look: { c: '#5a7ab0', b: '#f0a040', round: 1 } },
-  { id: 'perch',    name: 'Yellow Perch',    rar: 'common',    base: 26,   minLv: 0,  price: 8,   xp: 4,  look: { c: '#d8c040', b: '#f4ecb0', bars: '#5a5a2a' } },
-  { id: 'carp',     name: 'Carp',            rar: 'uncommon',  base: 14,   minLv: 0,  price: 12,  xp: 6,  look: { c: '#b88a40', b: '#e8d090', round: 1, scales: 1 } },
-  { id: 'trout',    name: 'Rainbow Trout',   rar: 'uncommon',  base: 10,   minLv: 1,  price: 18,  xp: 8,  look: { c: '#7a9a7a', b: '#f0e8e0', stripe: '#e87a8a', spots: 1 } },
-  { id: 'catfish',  name: 'Catfish',         rar: 'uncommon',  base: 9,    minLv: 1,  price: 20,  xp: 9,  look: { c: '#6a6a5a', b: '#c8c0a8', whiskers: 1, len: 1.15 } },
-  { id: 'bass',     name: 'Largemouth Bass', rar: 'rare',      base: 5,    minLv: 2,  price: 30,  xp: 12, look: { c: '#5a8a3a', b: '#e0e8c0', stripe: '#2a4a1a' } },
-  { id: 'pike',     name: 'Northern Pike',   rar: 'rare',      base: 3,    minLv: 4,  price: 45,  xp: 16, look: { c: '#5a7a3a', b: '#e8e8c0', len: 1.4, spots: 1 } },
-  { id: 'salmon',   name: 'Salmon',          rar: 'epic',      base: 1.6,  minLv: 6,  price: 70,  xp: 25, look: { c: '#7a8aa0', b: '#f0a080', len: 1.2, spots: 1 } },
-  { id: 'sturgeon', name: 'Sturgeon',        rar: 'epic',      base: 0.8,  minLv: 9,  price: 120, xp: 35, look: { c: '#6a6a7a', b: '#b8b8c0', len: 1.5, ridge: 1 } },
-  { id: 'koi',      name: 'Golden Koi',      rar: 'legendary', base: 0.25, minLv: 12, price: 400, xp: 80, look: { c: '#f2a020', b: '#fff6e0', patches: 1, shine: 1 } },
+  { id: 'minnow',   name: 'Minnow',          rar: 'common',    base: 40,   minLv: 0,  price: 3,   xp: 2, cm: 6,  look: { c: '#a8b8c0', b: '#e8eef0', len: 0.8 } },
+  { id: 'bluegill', name: 'Bluegill',        rar: 'common',    base: 30,   minLv: 0,  price: 6,   xp: 3, cm: 18,  look: { c: '#5a7ab0', b: '#f0a040', round: 1 } },
+  { id: 'perch',    name: 'Yellow Perch',    rar: 'common',    base: 26,   minLv: 0,  price: 8,   xp: 4, cm: 24,  look: { c: '#d8c040', b: '#f4ecb0', bars: '#5a5a2a' } },
+  { id: 'carp',     name: 'Carp',            rar: 'uncommon',  base: 14,   minLv: 0,  price: 12,  xp: 6, cm: 55,  look: { c: '#b88a40', b: '#e8d090', round: 1, scales: 1 } },
+  { id: 'trout',    name: 'Rainbow Trout',   rar: 'uncommon',  base: 10,   minLv: 1,  price: 18,  xp: 8, cm: 45,  look: { c: '#7a9a7a', b: '#f0e8e0', stripe: '#e87a8a', spots: 1 } },
+  { id: 'catfish',  name: 'Catfish',         rar: 'uncommon',  base: 9,    minLv: 1,  price: 20,  xp: 9, cm: 70,  look: { c: '#6a6a5a', b: '#c8c0a8', whiskers: 1, len: 1.15 } },
+  { id: 'bass',     name: 'Largemouth Bass', rar: 'rare',      base: 5,    minLv: 2,  price: 30,  xp: 12, cm: 42, look: { c: '#5a8a3a', b: '#e0e8c0', stripe: '#2a4a1a' } },
+  { id: 'pike',     name: 'Northern Pike',   rar: 'rare',      base: 3,    minLv: 4,  price: 45,  xp: 16, cm: 85, look: { c: '#5a7a3a', b: '#e8e8c0', len: 1.4, spots: 1 } },
+  { id: 'salmon',   name: 'Salmon',          rar: 'epic',      base: 1.6,  minLv: 6,  price: 70,  xp: 25, cm: 76, look: { c: '#7a8aa0', b: '#f0a080', len: 1.2, spots: 1 } },
+  { id: 'sturgeon', name: 'Sturgeon',        rar: 'epic',      base: 0.8,  minLv: 9,  price: 120, xp: 35, cm: 160, look: { c: '#6a6a7a', b: '#b8b8c0', len: 1.5, ridge: 1 } },
+  { id: 'koi',      name: 'Golden Koi',      rar: 'legendary', base: 0.25, minLv: 12, price: 400, xp: 80, cm: 60, look: { c: '#f2a020', b: '#fff6e0', patches: 1, shine: 1 } },
 ];
 const FISHMAP = Object.fromEntries(FISH.map(f => [f.id, f]));
 const FISH_LV_MAX = 20;
 const fishXpFor = l => Math.round(40 * Math.pow(l, 1.7));   // total XP needed to reach level l
 
+// raw produce from animals and the compost heap
+const FARM_GOODS = [
+  { id: 'eggs',       name: 'Eggs',       price: 8 },
+  { id: 'milk',       name: 'Milk',       price: 10 },
+  { id: 'honey',      name: 'Honey',      price: 14 },
+  { id: 'fertilizer', name: 'Fertilizer', price: 2 },
+];
+
 const ITEM = {};
 CROPS.forEach(c => ITEM[c.id] = { id: c.id, name: c.name, price: c.price, crop: true });
 FISH.forEach(f => ITEM[f.id] = { id: f.id, name: f.name, price: f.price, crop: false, fish: true });
+FARM_GOODS.forEach(a => ITEM[a.id] = { id: a.id, name: a.name, price: a.price, crop: false, farm: true });
 // goods are worth a markup over their ingredients plus a little for the time they take
 (function priceGoods() {
   const byOut = {}; RECIPES.forEach(r => byOut[r.out[0]] = r);
@@ -328,14 +358,19 @@ GOODS.forEach(g => g.price = ITEM[g.id].price);
 // w,h: footprint in tiles. cost: base coins. grow: cost multiplier per extra copy. max: limit.
 // lvl: level index that unlocks it. proc: true if it runs recipes.
 const BUILDINGS = {
-  plot:      { name: 'Garden Plot',     w: 1, h: 1, cost: 30,     grow: 1.10, lvl: 0,  cat: 'farm',  desc: 'A tilled bed. Tap it to choose what grows there each season.' },
+  plot:      { name: 'Garden Plot',     w: 1, h: 1, cost: 30,     grow: 1.10, lvl: 0,  cat: 'farm',  desc: 'A tilled bed. Touching plots join into one big bed.' },
   path:      { name: 'Cobble Path',     w: 1, h: 1, cost: 8,      grow: 1.0,  lvl: 0,  cat: 'farm',  desc: 'Meeples walk 40% faster on paths.' },
   well:      { name: 'Stone Well',      w: 2, h: 2, cost: 250,    grow: 1.7,  lvl: 0,  cat: 'farm',  max: 10, desc: 'Meeples fill their watering cans here. Watered soil grows crops 60% faster and stays moist for 3 harvests.' },
+  compost:   { name: 'Compost Bin',     w: 1, h: 1, cost: 350,    grow: 1.6,  lvl: 1,  cat: 'farm',  max: 6, desc: 'Spent plants and spare produce rot down into fertilizer. Fertilized plots have a 30% chance of a double harvest.' },
   scarecrow: { name: 'Scarecrow',       w: 1, h: 1, cost: 600,    grow: 1.4,  lvl: 3,  cat: 'farm',  max: 20, desc: 'Plots within 2 tiles grow 10% faster. Also very handsome.' },
   greenhouse:{ name: 'Greenhouse',      w: 4, h: 4, cost: 450000, grow: 2.2,  lvl: 24, cat: 'farm',  max: 3, walk: 1, desc: '12 glass-covered plots that grow 50% faster and never need watering. Tap it to lift the roof and plant.' },
   dock:      { name: 'Fishing Dock',    w: 1, h: 1, cost: 600,    grow: 2.0,  lvl: 2,  cat: 'water', max: 4, desc: 'Build beside a pond, then give a Meeple the Fish job. Tap it to check catch odds or reel one in yourself.' },
   smokehouse:{ name: 'Smokehouse',      w: 2, h: 2, cost: 6000,   grow: 2.4,  lvl: 3,  cat: 'water', max: 3, proc: 1, desc: 'Slow oak smoke turns fresh fish into smoked delicacies.' },
   sushi:     { name: 'Sushi Counter',   w: 2, h: 2, cost: 200000, grow: 2.3,  lvl: 25, cat: 'water', max: 2, proc: 1, desc: 'Rice, fresh fish and a sharp knife: nigiri, rolls and deluxe platters.' },
+  coop:      { name: 'Chicken Coop',    w: 2, h: 2, cost: 3000,   grow: 2.2,  lvl: 3,  cat: 'animal', max: 3, proc: 1, desc: 'A flock of hens turns grain into fresh eggs.' },
+  hive:      { name: 'Beehive',         w: 1, h: 1, cost: 2500,   grow: 1.5,  lvl: 5,  cat: 'animal', max: 8, proc: 1, desc: 'Bees make honey all on their own, and crops within 3 tiles grow 15% faster.' },
+  barn:      { name: 'Dairy Barn',      w: 2, h: 2, cost: 12000,  grow: 2.2,  lvl: 6,  cat: 'animal', max: 3, proc: 1, desc: 'Gentle cows turn grain into creamy milk.' },
+  noticeboard:{ name: 'Orders Board',   w: 1, h: 1, cost: 200,    grow: 1,    lvl: 1,  cat: 'core',  max: 1, desc: 'Neighbours pin up orders. Fill them before they expire for bonus coins and prizes.' },
   storehouse:{ name: 'Storehouse',      w: 2, h: 2, cost: 400,    grow: 2.2,  lvl: 0,  cat: 'core',  max: 4, desc: 'Meeples drop harvests at the nearest storehouse. Build more to shorten trips.' },
   market:    { name: 'Market Stall',    w: 2, h: 2, cost: 0,      grow: 1,    lvl: 0,  cat: 'core',  max: 1, desc: 'Sell goods and buy upgrades.' },
   creator:   { name: 'Meeple Creator',  w: 2, h: 2, cost: 250,    grow: 1,    lvl: 0,  cat: 'core',  max: 1, desc: 'Turns produce into new Meeples. Each crop makes a different kind.' },
@@ -354,7 +389,16 @@ const BUILDINGS = {
   lantern:   { name: 'Lantern Post',    w: 1, h: 1, cost: 120,    grow: 1.05, lvl: 1,  cat: 'decor', desc: 'Glows warmly at night.' },
   flowers:   { name: 'Flower Bed',      w: 1, h: 1, cost: 60,     grow: 1.03, lvl: 0,  cat: 'decor', desc: 'Pretty. Butterflies love it.' },
   bench:     { name: 'Bench',           w: 1, h: 1, cost: 150,    grow: 1.05, lvl: 2,  cat: 'decor', desc: 'For Meeples to dream on.' },
+  // found in the woods or earned from the Journal; never sold in the shop
+  gnome:     { name: 'Garden Gnome',    w: 1, h: 1, cost: 0, grow: 1, lvl: 0, cat: 'decor', found: 1, desc: 'Dug up while clearing the woods. Faceless and proud of it.' },
+  wheel:     { name: 'Wagon Wheel',     w: 1, h: 1, cost: 0, grow: 1, lvl: 0, cat: 'decor', found: 1, desc: 'From a cart that rolled through here long ago.' },
+  stump:     { name: 'Mushroom Stump',  w: 1, h: 1, cost: 0, grow: 1, lvl: 0, cat: 'decor', found: 1, desc: 'An old stump sprouting little red toadstools.' },
+  birdbath:  { name: 'Stone Birdbath',  w: 1, h: 1, cost: 0, grow: 1, lvl: 0, cat: 'decor', found: 1, desc: 'Songbirds stop by for a splash.' },
+  statue:    { name: 'Mossy Statue',    w: 1, h: 1, cost: 0, grow: 1, lvl: 0, cat: 'decor', found: 1, desc: 'A stone Meeple, worn smooth by the rain.' },
+  topiary:   { name: 'Meeple Topiary',  w: 1, h: 1, cost: 0, grow: 1, lvl: 0, cat: 'decor', found: 1, desc: 'A hedge clipped into a familiar shape. A Journal reward.' },
+  fountain:  { name: 'Stone Fountain',  w: 2, h: 2, cost: 0, grow: 1, lvl: 0, cat: 'decor', found: 1, desc: 'Burbling water in a mossy basin. A Journal reward.' },
 };
+const FOUND_DECOR = ['gnome', 'wheel', 'stump', 'birdbath', 'statue'];
 
 // ---------------------------------------------------------------- levels
 // Level i unlocks LEVELS[i].crop. req counts lifetime production (harvests + crafted goods).
@@ -406,6 +450,48 @@ const UPGRADES = [
   { id: 'haggle',  name: 'Silver Tongue',  desc: '+10% sell prices',              base: 1500,  mul: 3.5, max: 8, icon: 'haggle' },
   { id: 'copper',  name: 'Copper Coils',   desc: '+12% crafting speed',           base: 5000,  mul: 3.2, max: 6, icon: 'copper', lvl: 1 },
   { id: 'yield',   name: 'Lucky Clover',   desc: '+8% chance of a bonus harvest', base: 2500,  mul: 3.6, max: 6, icon: 'clover', lvl: 2 },
+];
+
+// ---------------------------------------------------------------- discoveries, hats, journal
+const RELICS = [
+  { id: 'horseshoe', name: 'Rusty Horseshoe',  desc: 'Still lucky, probably.' },
+  { id: 'oldcoin',   name: 'Old Silver Coin',  desc: 'Stamped with a Meeple wearing a crown.' },
+  { id: 'arrowhead', name: 'Flint Arrowhead',  desc: 'Chipped by careful hands long ago.' },
+  { id: 'fossil',    name: 'Spiral Fossil',    desc: 'A sea shell, very far from the sea.' },
+  { id: 'watch',     name: 'Pocket Watch',     desc: 'Stopped at ten past two.' },
+  { id: 'bottle',    name: 'Blue Bottle',      desc: 'A rolled-up note inside says "plant more carrots".' },
+  { id: 'key',       name: 'Brass Key',        desc: 'Opens something, somewhere.' },
+  { id: 'teacup',    name: 'Chipped Teacup',   desc: 'Painted rosebuds and one tiny crack.' },
+  { id: 'marble',    name: 'Glass Marble',     desc: 'A green swirl, like a tiny planet.' },
+  { id: 'figurine',  name: 'Wooden Meeple',    desc: 'Carved by someone a very long time ago.' },
+];
+const HATS = [
+  { id: 'straw',  name: 'Straw Hat',     how: 'Pip has worn it since day one' },
+  { id: 'flower', name: 'Flower Crown',  how: 'Found while clearing the woods' },
+  { id: 'acorn',  name: 'Acorn Cap',     how: 'Clear 150 tiles of woodland' },
+  { id: 'beanie', name: 'Knit Beanie',   how: 'Fill 5 orders' },
+  { id: 'bucket', name: 'Bucket Hat',    how: 'Reach fishing level 5' },
+  { id: 'chef',   name: 'Chef\'s Toque', how: 'Craft 200 goods' },
+  { id: 'tophat', name: 'Top Hat',       how: 'Fill 20 orders' },
+  { id: 'crown',  name: 'Golden Crown',  how: 'Win the Grand Harvest Fair' },
+];
+// Journal milestones: discover n entries on a page for a permanent bonus or a decoration.
+const JOURNAL = [
+  { page: 'crops',  n: 8,  r: { grow: 0.03 } },
+  { page: 'crops',  n: 16, r: { grow: 0.03 } },
+  { page: 'crops',  n: 24, r: { decor: 'topiary', k: 2 } },
+  { page: 'crops',  n: 32, r: { grow: 0.04 } },
+  { page: 'goods',  n: 10, r: { sell: 0.03 } },
+  { page: 'goods',  n: 25, r: { craft: 0.05 } },
+  { page: 'goods',  n: 45, r: { decor: 'fountain', k: 1 } },
+  { page: 'goods',  n: 70, r: { sell: 0.05 } },
+  { page: 'goods',  n: 0,  r: { craft: 0.08 } },   // 0 = the whole page
+  { page: 'fish',   n: 3,  r: { fish: 0.1 } },
+  { page: 'fish',   n: 7,  r: { decor: 'statue', k: 1 } },
+  { page: 'fish',   n: 11, r: { fish: 0.15 } },
+  { page: 'relics', n: 3,  r: { walk: 0.04 } },
+  { page: 'relics', n: 6,  r: { decor: 'birdbath', k: 1 } },
+  { page: 'relics', n: 10, r: { walk: 0.06 } },
 ];
 
 const MEEPLE_MAX = 40;

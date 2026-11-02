@@ -5,12 +5,14 @@ const DEV = /[?&]dev=(\d+)/.exec(location.search);
 const DEV_SPEED = DEV ? +DEV[1] : 1;
 let lastFrame = 0, acc = 0, autosaveT = 0, running = true, fpsT = 0, fpsN = 0, titleT = 0;
 
-function startGame(slot, fresh) {
+function startGame(slot, fresh, opts) {
   closeModal(); closePanel(); setMode(null);
   if (fresh || !loadGame(slot)) newGame(slot);
+  // a legacy meadow: a permanent bonus for each Fair won, and the hats come along
+  if (fresh && opts && opts.legacy) { S.legacy = opts.legacy; S.hats = Array.from(new Set(S.hats.concat(opts.hats || []))); }
   SET.lastSlot = slot; saveSettings();
   UI.inGame = true; UI.paused = false; UI.lastHud = {};
-  R.parts = []; R.amb = []; R.groundDirtyAll();
+  R.parts = []; R.amb = []; R.wetA = {}; R.groundDirtyAll();
   // centre camera on homestead
   R.cam.x = (CX - 0.5) * T; R.cam.y = CY * T; R.cam.z = Math.min(1.5, Math.max(0.9, Math.min(R.W, R.H) / (T * 9)));
   $('title').classList.add('hidden'); $('hud').classList.remove('hidden');
