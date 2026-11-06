@@ -192,7 +192,7 @@ function openPanel(type, id, tab) {
   hidePop();
   UI.panel = { type, id, tab: tab || (PANELS[type].tabs ? PANELS[type].tabs[0][0] : null) };
   R.sel = type === 'plot' ? { kind: 'plot', id } : (type === 'proc' || type === 'creator' || type === 'bldg' || type === 'greenhouse' || type === 'dock' || type === 'orders' || type === 'compost') ? { kind: 'b', id } : type === 'meeple' ? { kind: 'm', id } : null;
-  UI.sig = ''; $('panel').classList.remove('hidden');
+  UI.sig = ''; UI.pkey = null; $('panel').classList.remove('hidden');
   AUDIO.sfx('open');
   renderPanel(true);
 }
@@ -213,7 +213,10 @@ function renderPanel(force) {
     let tabs = '';
     if (P.tabs) tabs = '<div class="tabs">' + P.tabs.filter(t => !t[2] || t[2]()).map(([k, l]) => `<button class="btn sm tab ${UI.panel.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}">${l}</button>`).join('') + '</div>';
     el.innerHTML = `<div class="ph">${head}<button class="btn close" data-a="close">✕</button></div>${tabs}<div class="pb">${P.body(UI.panel)}</div>`;
-    if (!force) el.querySelector('.pb').scrollTop = sc;
+    // stay put when the same panel and tab redraw (e.g. after tapping a button); start at the top otherwise
+    const pkey = UI.panel.type + '|' + UI.panel.id + '|' + UI.panel.tab;
+    if (pkey === UI.pkey) el.querySelector('.pb').scrollTop = sc;
+    UI.pkey = pkey;
     if (P.after) P.after(el, UI.panel);
   }
   liveUpdate();
