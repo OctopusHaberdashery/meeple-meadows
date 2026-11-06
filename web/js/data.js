@@ -419,7 +419,7 @@ GOODS.forEach(g => g.price = ITEM[g.id].price);
 // w,h: footprint in tiles. cost: base coins. grow: cost multiplier per extra copy. max: limit.
 // lvl: level index that unlocks it. proc: true if it runs recipes.
 const BUILDINGS = {
-  plot:      { name: 'Garden Plot',     w: 1, h: 1, cost: 30,     grow: 1.10, lvl: 0,  cat: 'farm',  desc: 'A tilled bed. Touching plots join into one big bed.' },
+  plot:      { name: 'Garden Plot',     w: 1, h: 1, cost: 30,     grow: 1.05, lvl: 0,  cat: 'farm',  desc: 'A tilled bed. Touching plots join into one big bed.' },
   path:      { name: 'Cobble Path',     w: 1, h: 1, cost: 8,      grow: 1.0,  lvl: 0,  cat: 'farm',  desc: 'Meeples walk 40% faster on paths.' },
   well:      { name: 'Stone Well',      w: 2, h: 2, cost: 250,    grow: 1.7,  lvl: 0,  cat: 'farm',  max: 10, desc: 'Meeples fill their watering cans here. Watered soil grows crops 60% faster and stays moist for 3 harvests.' },
   compost:   { name: 'Compost Bin',     w: 1, h: 1, cost: 350,    grow: 1.6,  lvl: 1,  cat: 'farm',  max: 6, desc: 'Spent plants and spare produce rot down into fertilizer. Fertilized plots have a 30% chance of a double harvest.' },
