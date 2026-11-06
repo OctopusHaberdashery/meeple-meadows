@@ -38,13 +38,17 @@ function buildingURL(type) {
   if (!bURL[type]) { const s = buildingSprite(type); bURL[type] = s.c.toDataURL(); }
   return bURL[type];
 }
-function meepleURL(col, crop) {
-  const k = col + crop;
+function meepleURL(col, crop, hat) {
+  const k = col + crop + (hat || '');
   if (!mURL[k]) {
-    const s = meepleSprite(col), c = newCanvas(64, 72), g = c.getContext('2d');
-    const sc = 64 / s.w * 0.9;
-    g.drawImage(s.c, 32 - s.ax * sc, 70 - s.ay * sc, s.w * sc, s.h * sc);
-    if (crop !== 'founder' && ART.icons[crop]) { const ic = ART.icons[crop]; g.drawImage(ic.c, 22, 0, 20, 20); }
+    const head = crop !== 'founder' && !!ART.icons[crop];
+    const s = meepleSprite(col, null, -1, head), c = newCanvas(64, 72), g = c.getContext('2d');
+    const sc = 64 / s.w * 0.82;
+    g.save(); g.translate(32, 70); g.scale(sc, sc);
+    g.drawImage(s.c, -s.ax, -s.ay, s.w, s.h);
+    if (head) drawProduceHead(g, crop);
+    if (hat && HAT_DRAW[hat]) { const h = hatSprite(hat); g.drawImage(h.c, -h.ax, -17.6 - (head ? 2 : 0) - h.ay, h.w, h.h); }
+    g.restore();
     mURL[k] = c.toDataURL();
   }
   return mURL[k];
@@ -225,15 +229,15 @@ function liveVal(k) {
     case 'coins': return fmt(S.coins);
     case 'inv': return fmt(S.inv[b] || 0);
     case 'life': return fmt(S.lifetime[b] || 0);
-    case 'plot': { const p = S.plots[b]; return p ? (p.st === 2 ? 1 : p.st === 0 ? 0 : p.t / growTarget(p)) : 0; }
-    case 'plott': { const p = S.plots[b]; if (!p) return ''; if (p.st === 2) return 'Ripe! Waiting for a Meeple'; if (!plotInSeason(p)) return 'Dormant — ' + CROP[p.crop].name + ' grows in ' + CROP[p.crop].sea.map(x => SEASONS[x].name).join(', '); if (p.st === 0) return 'Waiting to be planted'; return (p.wet ? '💧 Moist for ' + (p.wet | 0) + ' harvest' + ((p.wet | 0) > 1 ? 's' : '') + ' · ' : (hasWell() ? 'Thirsty · ' : '')) + ((p.gen | 0) > 0 ? 'Regrowing · ' : '') + 'Ready in ' + fmtTime((growTarget(p) - p.t) / growMult(p)); }
+    case 'plot': { const p = S.plots[b]; return p ? (p.st >= 2 ? 1 : p.st === 0 ? 0 : p.t / growTarget(p)) : 0; }
+    case 'plott': { const p = S.plots[b]; if (!p) return ''; const px = plotStatusX(p); if (px) return px; if (p.st === 2) return 'Ripe! Waiting for a Meeple'; if (!plotInSeason(p)) return 'Dormant — ' + CROP[p.crop].name + ' grows in ' + CROP[p.crop].sea.map(x => SEASONS[x].name).join(', '); if (p.st === 0) return 'Waiting to be planted'; return (p.wet ? '💧 Moist for ' + (p.wet | 0) + ' harvest' + ((p.wet | 0) > 1 ? 's' : '') + ' · ' : (hasWell() ? 'Thirsty · ' : '')) + ((p.gen | 0) > 0 ? 'Regrowing · ' : '') + 'Ready in ' + fmtTime((growTarget(p) - p.t) / growMult(p)); }
     case 'plotlife': {
       const p = S.plots[b]; if (!p) return ''; const c = CROP[p.crop];
       if (c.harvests === 0) return '🌳 Perennial: keeps producing, regrows in ' + fmtTime(c.regrow) + ' after each harvest';
       if (c.harvests === 1) return '🌱 One harvest, then a Meeple replants it from seed';
       return '🔁 Harvest ' + Math.min(c.harvests, (p.gen | 0) + 1) + ' of ' + c.harvests + ' · regrows in ' + fmtTime(c.regrow) + ', then needs replanting';
     }
-    case 'bp': { const x = BMAP[b]; if (!x || !x.recipe) return 0; const r = RECIPE[x.recipe]; if (x.phase === 'work') return x.t / r.t; if (x.phase === 'done') return 1; let h = 0, n = 0; for (const q in r.in) { n += r.in[q]; h += Math.min(r.in[q], x.got[q] || 0); } return x.phase === 'gather' ? h / n : 0; }
+    case 'bp': { const x = BMAP[b]; if (x && !treeGrown(x)) return (x.age || 0) / TREE_GROW; if (!x || !x.recipe) return 0; const r = RECIPE[x.recipe]; if (x.phase === 'work') return x.t / r.t; if (x.phase === 'done') return 1; let h = 0, n = 0; for (const q in r.in) { n += r.in[q]; h += Math.min(r.in[q], x.got[q] || 0); } return x.phase === 'gather' ? h / n : 0; }
     case 'bs': return procStatus(BMAP[b]);
     case 'got': { const [bid, item] = b.split('/'); const x = BMAP[bid]; return x ? String(x.got[item] || 0) : '0'; }
     case 'cq': { const x = BMAP[b]; return x && x.queue.length ? x.t / 20 : 0; }
@@ -245,6 +249,7 @@ function liveVal(k) {
 }
 function procStatus(b) {
   if (!b) return '';
+  if (!treeGrown(b)) return 'Growing up… ' + fmtTime(TREE_GROW - (b.age || 0)) + ' until the first ' + ITEM[TREE_OF[b.type].prod].name.toLowerCase();
   if (!b.recipe || b.phase === 'idle') return b.recipe ? 'Stopped — tap Start to run again' : 'Idle — choose a recipe below';
   const r = RECIPE[b.recipe];
   if (b.phase === 'gather') {
@@ -271,6 +276,7 @@ function meepleTask(m) {
     case 'fill': return 'Filling a watering can at the well';
     case 'water': return 'Watering crops (' + m.can + ' left in can)';
     case 'fish': return m.path.length ? 'Walking to the dock' : 'Fishing (' + m.hand.length + '/' + mCarry(m) + ' caught)';
+    case 'mend': return m.path.length ? 'Hurrying to a chewed plant' : 'Shooing mice and tending a chewed plant';
   }
   return '';
 }
@@ -279,14 +285,15 @@ const lvName = L => LEVELS[L].crop ? CROP[LEVELS[L].crop].name : 'the Fair';
 
 // --- build
 PANELS.build = {
-  tabs: [['farm', 'Farm'], ['craft', 'Crafting'], ['animal', 'Animals'], ['water', 'Fishing'], ['core', 'Homestead'], ['decor', 'Decor']],
+  tabs: [['farm', 'Farm'], ['craft', 'Crafting'], ['animal', 'Animals'], ['trees', 'Trees'], ['water', 'Fishing'], ['core', 'Homestead'], ['decor', 'Decor']],
   head: () => `${iconImg('hammer', 'lg')}<h2>Build<small>Place new things on cleared land</small></h2>`,
-  sig: p => S.level + ':' + Object.keys(BUILDINGS).map(t => (S.coins >= bCost(t) ? 1 : 0) + '' + bCount(t) + (S.found[t] || '')).join(''),
+  sig: p => S.level + ':' + Object.keys(BUILDINGS).map(t => (S.coins >= bCost(t) ? 1 : 0) + '' + bCount(t) + (S.found[t] || '') + (BUILDINGS[t].tree ? S.inv[TREE_OF[t].seed] || 0 : '')).join(''),
   body: p => {
     let h = '';
     for (const t in BUILDINGS) {
       const d = BUILDINGS[t]; if (d.cat !== p.tab || t === 'market') continue;
       if (d.found) { h += foundCard(t); continue; }
+      if (d.tree) { h += treeCard(t); continue; }
       const locked = !bUnlocked(t), cost = bCost(t), cnt = t === 'plot' ? Object.keys(S.plots).length : bCount(t), full = d.max && cnt >= d.max;
       const img = (t === 'plot' || t === 'path') ? iconImg(t === 'plot' ? 'soil' : 'move', 'xl') : `<img class="bimg" src="${buildingURL(t)}">`;
       h += `<div class="card ${locked ? 'locked' : ''}"><div class="row">${img}<div class="grow"><div class="t">${d.name}</div><div class="s">${d.desc}</div>
@@ -477,7 +484,7 @@ PANELS.proc = {
       const r = RECIPE[b.recipe];
       h += `<div class="card sel"><div class="row">${iconImg(r.out[0], 'xl')}<div class="grow"><div class="t">${ITEM[r.out[0]].name}${r.out[1] > 1 ? ' ×' + r.out[1] : ''}</div>
         <div class="s" data-live="bs:${b.id}"></div><div class="bar big" style="margin-top:.3rem"><i data-bar="bp:${b.id}"></i></div>
-        <div style="margin-top:.3rem">${Object.keys(r.in).map(k => `<span class="chip">${iconImg(k, 'sm')}<span data-live="got:${b.id}/${k}"></span>/${r.in[k]}</span>`).join('')}</div></div></div>${missingHtml(b)}
+        <div style="margin-top:.3rem">${Object.keys(r.in).map(k => `<span class="chip">${iconImg(k, 'sm')}<span data-live="got:${b.id}/${k}"></span>/${r.in[k]}</span>`).join('')}</div></div></div>${missingHtml(b)}${procExtraHtml(b)}
         <div class="row" style="margin-top:.45rem;gap:.4rem">
           <div class="toggle"><button class="${b.repeat ? 'on' : ''}" data-a="repeat" data-v="1">Repeat</button><button class="${!b.repeat ? 'on' : ''}" data-a="repeat" data-v="0">Once</button></div>
           <span class="grow"></span>${b.phase === 'idle' ? `<button class="btn sm green" data-a="recipe" data-v="${b.recipe}">Start</button>` : `<button class="btn sm red" data-a="stop">Stop</button>`}</div></div>`;
@@ -588,7 +595,7 @@ PANELS.meeples = {
     let h = cr ? `<button class="btn wide green" data-a="opencreator" style="margin-bottom:.6rem">${iconImg('meeple')} Create a Meeple</button>` : `<p class="s">Build a <b>Meeple Creator</b> to make more Meeples.</p>`;
     h += `<p class="s"><b>Farm</b> = plant & harvest. <b>Water</b> = fill cans at a well and water crops. <b>Haul</b> = carry ingredients to and from crafting buildings. <b>🎣 Fish</b> = fish at a dock full-time (overrides the other jobs).</p>`;
     for (const m of S.meeples) {
-      h += `<div class="card"><div class="row"><img src="${meepleURL(m.col, m.crop)}" style="width:2.8rem;height:3.1rem"><div class="grow"><div class="t">${esc(m.name)} <span class="s">· ${m.trait}</span></div>
+      h += `<div class="card"><div class="row"><img src="${meepleURL(m.col, m.crop, m.hat)}" style="width:2.8rem;height:3.1rem"><div class="grow"><div class="t">${esc(m.name)} <span class="s">· ${m.trait} · ${gaitName(m)}</span></div>
         <div class="s">🏃 ${mSpeed(m).toFixed(1)} · 🧺 ${mCarry(m)} · ✋ ${mWork(m).toFixed(1)}</div><div class="s" data-live="mt:${m.id}"></div></div>
         <div style="display:flex;flex-direction:column;gap:.25rem;align-items:flex-end"><div class="toggle"><button class="${m.farm ? 'on' : ''}" data-a="mfarm" data-v="${m.id}">Farm</button><button class="${m.water !== false ? 'on' : ''}" data-a="mwater" data-v="${m.id}">Water</button><button class="${m.haul ? 'on' : ''}" data-a="mhaul" data-v="${m.id}">Haul</button><button class="${m.fish ? 'on' : ''}" data-a="mfish" data-v="${m.id}">🎣</button></div>
         <button class="btn sm" data-a="mfind" data-v="${m.id}">Find</button></div></div></div>`;
@@ -599,12 +606,12 @@ PANELS.meeples = {
 // --- single meeple
 PANELS.meeple = {
   valid: p => S.meeples.some(m => m.id === p.id),
-  head: p => { const m = S.meeples.find(x => x.id === p.id); return `<img src="${meepleURL(m.col, m.crop)}" style="width:2.6rem;height:2.9rem"><h2>${esc(m.name)}<small>${m.crop === 'founder' ? 'The founding Meeple' : CROP[m.crop].name + ' Meeple'} · ${m.trait}</small></h2>`; },
+  head: p => { const m = S.meeples.find(x => x.id === p.id); return `<img src="${meepleURL(m.col, m.crop, m.hat)}" style="width:2.6rem;height:2.9rem"><h2>${esc(m.name)}<small>${m.crop === 'founder' ? 'The founding Meeple' : CROP[m.crop].name + ' Meeple'} · ${m.trait} · ${gaitName(m)}</small></h2>`; },
   sig: p => { const m = S.meeples.find(x => x.id === p.id); return m.name + m.farm + m.haul + m.water + m.fish + m.hat + S.hats.length + upg('boots') + upg('basket') + upg('hands'); },
   body: p => {
     const m = S.meeples.find(x => x.id === p.id);
     const sb = (lbl, v, mx) => `<div class="stat"><b>${lbl}</b><div class="statbar"><i style="width:${Math.min(100, v / mx * 100)}%"></i></div><span>${v}</span></div>`;
-    return `<div class="card"><div class="row"><img src="${meepleURL(m.col, m.crop)}" style="width:4.6rem;height:5.2rem"><div class="grow">
+    return `<div class="card"><div class="row"><img src="${meepleURL(m.col, m.crop, m.hat)}" style="width:4.6rem;height:5.2rem"><div class="grow">
       ${sb('Speed', +mSpeed(m).toFixed(2), 5)}${sb('Carry', mCarry(m), 18)}${sb('Hands', +mWork(m).toFixed(2), 3)}
       <div class="s" style="margin-top:.3rem">Now: <b data-live="mt:${m.id}"></b></div></div></div></div>
       <div class="sec">Jobs</div><div class="row"><div class="toggle"><button class="${m.farm ? 'on' : ''}" data-a="mfarm" data-v="${m.id}">Farm</button><button class="${m.water !== false ? 'on' : ''}" data-a="mwater" data-v="${m.id}">Water</button><button class="${m.haul ? 'on' : ''}" data-a="mhaul" data-v="${m.id}">Haul</button><button class="${m.fish ? 'on' : ''}" data-a="mfish" data-v="${m.id}">Fish</button></div>
@@ -753,9 +760,11 @@ function onWorldTap(sx, sy) {
     if (S.coins < bCost(type)) { toast('Not enough coins', true); return; }
     if (d.max && bCount(type) >= d.max) { toast('You have the maximum number of these', true); setMode(null); return; }
     if (d.found && !(S.found[type] > 0)) { toast('None left to place', true); setMode(null); return; }
+    if (d.tree && !(S.inv[TREE_OF[type].seed] > 0)) { toast('No ' + ITEM[TREE_OF[type].seed].name.toLowerCase() + 's left. Buy more at Market → Seeds', true); setMode(null); return; }
+    if (type === 'duckhouse' && dockWater({ x, y }) < 0) { toast('A Duck House has to touch a pond', true); return; }
     if (!canPlace(type, x, y)) { toast(type === 'plot' || type === 'path' ? 'That spot needs clear, empty ground' : 'Needs clear ground — and must not block paths', true); return; }
     place(type, x, y);
-    const again = (type === 'plot' || type === 'path' || d.cat === 'decor' || type === 'barrel' || type === 'crock' || type === 'hive') && S.coins >= bCost(type) && !(d.max && bCount(type) >= d.max) && !(d.found && !(S.found[type] > 0));
+    const again = (type === 'plot' || type === 'path' || d.cat === 'decor' || type === 'barrel' || type === 'crock' || type === 'hive') && S.coins >= bCost(type) && !(d.max && bCount(type) >= d.max) && !(d.found && !(S.found[type] > 0)) && !(d.tree && !(S.inv[TREE_OF[type].seed] > 0)) || (d.tree && S.inv[TREE_OF[type].seed] > 0 && bCount(type) < d.max);
     if (!again) setMode(null);
     return;
   }

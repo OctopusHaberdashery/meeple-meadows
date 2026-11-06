@@ -272,9 +272,10 @@ function onExtraEvent(e) {
         relic: () => `Found a relic: <b>${RELICS.find(r => r.id === e.id).name}</b>! It's in your Journal (+${fmt(e.n)} coins).`,
         decor: () => `Found a <b>${BUILDINGS[e.id].name}</b>! Place it from Build → Decor.`,
         lure: () => `Found an old fishing lure (+${e.n} fishing XP).`,
-        hat: () => `Found a <b>Flower Crown</b>! Dress up a Meeple from their panel.`,
+        hat: () => `Found a <b>${HATS.find(h => h.id === e.id).name}</b>! Dress up a Meeple from their panel.`,
+        seed: () => `Found a <b>${ITEM[e.id].name}</b>! Plant it from Build → Trees.`,
       }[e.what];
-      toast(msg(), false, e.what === 'coins' ? 'coin' : e.what === 'produce' ? e.id : e.what === 'relic' ? 'relic_' + e.id : e.what === 'hat' ? 'hat_flower' : e.what === 'lure' ? 'minnow' : 'star');
+      toast(msg(), false, e.what === 'coins' ? 'coin' : e.what === 'produce' ? e.id : e.what === 'relic' ? 'relic_' + e.id : e.what === 'hat' ? 'hat_' + e.id : e.what === 'seed' ? e.id : e.what === 'lure' ? 'minnow' : 'star');
       return true;
     }
     case 'journal': AUDIO.sfx('level'); toast(`📖 Journal milestone! <b>${rewardText(JOURNAL[e.i].r)}</b>`, false, 'journal'); return true;

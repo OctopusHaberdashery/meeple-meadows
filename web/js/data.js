@@ -81,6 +81,15 @@ CROPS.forEach(c => {
 });
 const harvestLabel = c => c.harvests === 0 ? '∞' : c.harvests + '×';
 const CROP = Object.fromEntries(CROPS.map(c => [c.id, c]));
+// flowers for the bees: planted in plots like crops, they bloom and stay in bloom (nothing to harvest).
+// Each blooming flower within 4 tiles of a beehive speeds up its honey; every 3 add an extra honey per batch.
+const FLOWERS = [
+  { id: 'clover',   name: 'White Clover', grow: 50,  col: '#f4f0f4', leaf: '#4f9a3a', lvl: 5,  bee: 0.12 },
+  { id: 'marigold', name: 'Marigold',     grow: 80,  col: '#f29a1a', leaf: '#5a9a3a', lvl: 7,  bee: 0.15 },
+  { id: 'borage',   name: 'Borage',       grow: 110, col: '#5a7ae8', leaf: '#6a9a5a', lvl: 10, bee: 0.2 },
+  { id: 'poppy',    name: 'Poppy',        grow: 140, col: '#e8402a', leaf: '#5a9a4a', lvl: 14, bee: 0.25 },
+];
+FLOWERS.forEach(f => { Object.assign(f, { flower: true, harvests: 0, regrow: f.grow, price: 0 }); CROP[f.id] = f; });
 
 // ---------------------------------------------------------------- goods
 // icon: drawing recipe used by art.js. Prices are derived from recipes below.
@@ -180,6 +189,18 @@ const GOODS = [
   { id: 'quiche',       name: 'Cheese Quiche',    icon: { t: 'pie', c: '#eec860', open: 1 } },
   { id: 'mead',         name: 'Honey Mead',       icon: { t: 'mug', c: '#e8b040' } },
   { id: 'milktea',      name: 'Honey Milk Tea',   icon: { t: 'cup', c: '#d8b890', foam: 1 } },
+  { id: 'eggnoodles',   name: 'Egg Noodles',      icon: { t: 'bowl', c: '#f2d890', b: '#c8603a', noodle: 1 } },
+  { id: 'featherpillow',name: 'Feather Pillow',   icon: { t: 'pillow', c: '#fbf8f0' } },
+  // candles and the woods
+  { id: 'candle',       name: 'Beeswax Candles',  icon: { t: 'candle', c: '#f4e0a0' } },
+  { id: 'lavcandle',    name: 'Lavender Candle',  icon: { t: 'candle', c: '#c8a8e8', jar: 1 } },
+  { id: 'pinecandle',   name: 'Pine Candle',      icon: { t: 'candle', c: '#a8c890', jar: 1 } },
+  { id: 'maplesyrup',   name: 'Maple Syrup',      icon: { t: 'bottle', c: '#b8661c', shape: 'jug' } },
+  { id: 'maplecandy',   name: 'Maple Candy',      icon: { t: 'candy', c: '#d89040' } },
+  { id: 'birchbeer',    name: 'Birch Beer',       icon: { t: 'mug', c: '#7a3a2a' } },
+  { id: 'acornflour',   name: 'Acorn Flour',      icon: { t: 'sack', c: '#e8d8b8', l: '#8a5a2e' } },
+  { id: 'acornbread',   name: 'Acorn Bread',      icon: { t: 'loaf' } },
+  { id: 'willowbasket', name: 'Willow Basket',    icon: { t: 'wbasket' } },
 ];
 const GOOD = Object.fromEntries(GOODS.map(g => [g.id, g]));
 
@@ -298,6 +319,27 @@ const RECIPES = [
   { id: 'r_quiche',    at: 'oven',    in: { flour: 2, eggs: 2, cheese: 1 },         out: ['quiche', 1],     t: 100,  lvl: 7 },
   { id: 'r_mead',      at: 'barrel',  in: { honey: 5 },                             out: ['mead', 1],       t: 900,  lvl: 13 },
   { id: 'r_milktea',   at: 'teahouse',in: { tealeaves: 1, milk: 1, honey: 1 },      out: ['milktea', 1],    t: 90,   lvl: 19 },
+  // ducks
+  { id: 'r_duckeggs',  at: 'duckhouse', in: { lettuce: 3 },                         out: ['duckeggs', 2],   t: 90,   lvl: 8 },
+  { id: 'r_duckeggs2', at: 'duckhouse', in: { barley: 2 },                          out: ['duckeggs', 3],   t: 90,   lvl: 12 },
+  { id: 'r_noodles',   at: 'pot',     in: { flour: 2, duckeggs: 2 },                out: ['eggnoodles', 1], t: 70,   lvl: 8 },
+  { id: 'r_pillow',    at: 'loom',    in: { feathers: 6, cloth: 1 },                out: ['featherpillow', 1], t: 200, lvl: 17 },
+  // candles
+  { id: 'r_candle',    at: 'chandlery', in: { beeswax: 2 },                         out: ['candle', 2],     t: 90,   lvl: 5 },
+  { id: 'r_pinecandle',at: 'chandlery', in: { beeswax: 1, resin: 2 },               out: ['pinecandle', 1], t: 110,  lvl: 5 },
+  { id: 'r_lavcandle', at: 'chandlery', in: { beeswax: 2, driedlavender: 1 },       out: ['lavcandle', 1],  t: 120,  lvl: 27 },
+  // trees (they only start producing once grown)
+  { id: 'r_acorns',    at: 'oaktree',    in: {},                                    out: ['acorns', 2],     t: 200,  lvl: 3 },
+  { id: 'r_birchsap',  at: 'birchtree',  in: {},                                    out: ['birchsap', 1],   t: 220,  lvl: 3 },
+  { id: 'r_resin',     at: 'pinetree',   in: {},                                    out: ['resin', 1],      t: 260,  lvl: 3 },
+  { id: 'r_maplesap',  at: 'mapletree',  in: {},                                    out: ['maplesap', 1],   t: 240,  lvl: 3 },
+  { id: 'r_withies',   at: 'willowtree', in: {},                                    out: ['withies', 2],    t: 200,  lvl: 3 },
+  { id: 'r_acornflour',at: 'mill',    in: { acorns: 4 },                            out: ['acornflour', 1], t: 40,   lvl: 3 },
+  { id: 'r_acornbread',at: 'oven',    in: { acornflour: 2, honey: 1 },              out: ['acornbread', 1], t: 80,   lvl: 6 },
+  { id: 'r_maplesyrup',at: 'kettle',  in: { maplesap: 4 },                          out: ['maplesyrup', 1], t: 120,  lvl: 7 },
+  { id: 'r_maplecandy',at: 'kettle',  in: { maplesyrup: 1, sugar: 1 },              out: ['maplecandy', 2], t: 80,   lvl: 7 },
+  { id: 'r_birchbeer', at: 'barrel',  in: { birchsap: 4, sugar: 1 },                out: ['birchbeer', 2],  t: 600,  lvl: 13 },
+  { id: 'r_basket',    at: 'loom',    in: { withies: 5 },                           out: ['willowbasket', 1], t: 150, lvl: 17 },
 ];
 const RECIPE = Object.fromEntries(RECIPES.map(r => [r.id, r]));
 
@@ -333,12 +375,31 @@ const FARM_GOODS = [
   { id: 'milk',       name: 'Milk',       price: 10 },
   { id: 'honey',      name: 'Honey',      price: 14 },
   { id: 'fertilizer', name: 'Fertilizer', price: 2 },
+  { id: 'beeswax',    name: 'Beeswax',    price: 9 },
+  { id: 'duckeggs',   name: 'Duck Eggs',  price: 9 },
+  { id: 'feathers',   name: 'Feathers',   price: 4 },
+  { id: 'acorns',     name: 'Acorns',     price: 5 },
+  { id: 'maplesap',   name: 'Maple Sap',  price: 12 },
+  { id: 'birchsap',   name: 'Birch Sap',  price: 10 },
+  { id: 'withies',    name: 'Willow Withies', price: 6 },
+  { id: 'resin',      name: 'Pine Resin', price: 14 },
 ];
+// trees grow from seedlings bought at the market or found while clearing the woods
+const TREES = [
+  { id: 'oaktree',    seed: 'seed_oak',    name: 'Oak Tree',    seedName: 'Oak Seedling',    buy: 200, prod: 'acorns',   kind: 'oak' },
+  { id: 'birchtree',  seed: 'seed_birch',  name: 'Birch Tree',  seedName: 'Birch Seedling',  buy: 300, prod: 'birchsap', kind: 'birch' },
+  { id: 'pinetree',   seed: 'seed_pine',   name: 'Pine Tree',   seedName: 'Pine Seedling',   buy: 350, prod: 'resin',    kind: 'pine' },
+  { id: 'willowtree', seed: 'seed_willow', name: 'Willow Tree', seedName: 'Willow Cutting',  buy: 450, prod: 'withies',  kind: 'willow' },
+  { id: 'mapletree',  seed: 'seed_maple',  name: 'Maple Tree',  seedName: 'Maple Seedling',  buy: 600, prod: 'maplesap', kind: 'maple' },
+];
+const TREE_GROW = 1500;   // seconds for a seedling to grow up and start producing
 
 const ITEM = {};
 CROPS.forEach(c => ITEM[c.id] = { id: c.id, name: c.name, price: c.price, crop: true });
 FISH.forEach(f => ITEM[f.id] = { id: f.id, name: f.name, price: f.price, crop: false, fish: true });
 FARM_GOODS.forEach(a => ITEM[a.id] = { id: a.id, name: a.name, price: a.price, crop: false, farm: true });
+TREES.forEach(t => ITEM[t.seed] = { id: t.seed, name: t.seedName, price: Math.round(t.buy / 8), crop: false, seed: true });
+FLOWERS.forEach(f => ITEM[f.id] = { id: f.id, name: f.name, price: 0, crop: false, flower: true });
 // goods are worth a markup over their ingredients plus a little for the time they take
 (function priceGoods() {
   const byOut = {}; RECIPES.forEach(r => byOut[r.out[0]] = r);
@@ -370,6 +431,11 @@ const BUILDINGS = {
   coop:      { name: 'Chicken Coop',    w: 2, h: 2, cost: 3000,   grow: 2.2,  lvl: 3,  cat: 'animal', max: 3, proc: 1, desc: 'A flock of hens turns grain into fresh eggs.' },
   hive:      { name: 'Beehive',         w: 1, h: 1, cost: 2500,   grow: 1.5,  lvl: 5,  cat: 'animal', max: 8, proc: 1, desc: 'Bees make honey all on their own, and crops within 3 tiles grow 15% faster.' },
   barn:      { name: 'Dairy Barn',      w: 2, h: 2, cost: 12000,  grow: 2.2,  lvl: 6,  cat: 'animal', max: 3, proc: 1, desc: 'Gentle cows turn grain into creamy milk.' },
+  duckhouse: { name: 'Duck House',      w: 1, h: 1, cost: 8000,   grow: 2.0,  lvl: 8,  cat: 'animal', max: 3, proc: 1, desc: 'Build it beside a pond. Ducks paddle about, lay duck eggs and drop feathers.' },
+  owlbox:    { name: 'Barn Owl Box',    w: 1, h: 1, cost: 1500,   grow: 1.8,  lvl: 2,  cat: 'farm',  max: 4, desc: 'A barn owl nests here. It swoops on any field mouse within 9 tiles and carries it back to the nest.' },
+  doghouse:  { name: 'Dog House',       w: 1, h: 1, cost: 2500,   grow: 1.8,  lvl: 4,  cat: 'farm',  max: 3, desc: 'A good dog dashes out and chases squirrels off your crops (within 8 tiles).' },
+  cattree:   { name: 'Cat Tree',        w: 1, h: 1, cost: 2000,   grow: 1.8,  lvl: 4,  cat: 'farm',  max: 3, desc: 'A farm cat pounces on mice and chases off squirrels within 6 tiles. Slower than an owl or a dog, but it handles both.' },
+  chandlery: { name: 'Chandlery',       w: 2, h: 2, cost: 10000,  grow: 2.3,  lvl: 5,  cat: 'craft', max: 2, proc: 1, desc: 'Melts beeswax into candles, plain or scented.' },
   noticeboard:{ name: 'Orders Board',   w: 1, h: 1, cost: 200,    grow: 1,    lvl: 1,  cat: 'core',  max: 1, desc: 'Neighbours pin up orders. Fill them before they expire for bonus coins and prizes.' },
   storehouse:{ name: 'Storehouse',      w: 2, h: 2, cost: 400,    grow: 2.2,  lvl: 0,  cat: 'core',  max: 4, desc: 'Meeples drop harvests at the nearest storehouse. Build more to shorten trips.' },
   market:    { name: 'Market Stall',    w: 2, h: 2, cost: 0,      grow: 1,    lvl: 0,  cat: 'core',  max: 1, desc: 'Sell goods and buy upgrades.' },
@@ -399,6 +465,8 @@ const BUILDINGS = {
   fountain:  { name: 'Stone Fountain',  w: 2, h: 2, cost: 0, grow: 1, lvl: 0, cat: 'decor', found: 1, desc: 'Burbling water in a mossy basin. A Journal reward.' },
 };
 const FOUND_DECOR = ['gnome', 'wheel', 'stump', 'birdbath', 'statue'];
+TREES.forEach(t => BUILDINGS[t.id] = { name: t.name, w: 1, h: 1, cost: 0, grow: 1, lvl: 3, cat: 'trees', max: 12, proc: 1, tree: 1,
+  desc: `Plant ${/^[aeiou]/i.test(t.seedName) ? 'an' : 'a'} ${t.seedName.toLowerCase()}. Once it grows up it gives ${ITEM[t.prod].name.toLowerCase()} on its own.` });
 
 // ---------------------------------------------------------------- levels
 // Level i unlocks LEVELS[i].crop. req counts lifetime production (harvests + crafted goods).
@@ -474,6 +542,35 @@ const HATS = [
   { id: 'chef',   name: 'Chef\'s Toque', how: 'Craft 200 goods' },
   { id: 'tophat', name: 'Top Hat',       how: 'Fill 20 orders' },
   { id: 'crown',  name: 'Golden Crown',  how: 'Win the Grand Harvest Fair' },
+  { id: 'mushroom', name: 'Toadstool Cap', how: 'Found while clearing the woods' },
+  { id: 'leaf',   name: 'Leaf Hat',      how: 'Found while clearing the woods' },
+  { id: 'beret',  name: 'Beret',         how: 'Reach level 10' },
+  { id: 'halo',   name: 'Halo',          how: 'Reach level 20' },
+  { id: 'cowboy', name: 'Cowboy Hat',    how: 'Have 10 Meeples' },
+  { id: 'party',  name: 'Party Hat',     how: 'Fill 10 orders' },
+  { id: 'propeller', name: 'Propeller Cap', how: 'Clear 400 tiles of woodland' },
+  { id: 'pirate', name: 'Pirate Hat',    how: 'Catch 50 fish' },
+  { id: 'frog',   name: 'Frog Hat',      how: 'Catch a Golden Koi' },
+  { id: 'viking', name: 'Viking Helmet', how: 'Brew 50 beers' },
+  { id: 'wizard', name: 'Wizard Hat',    how: 'Find 5 relics' },
+  { id: 'bow',    name: 'Big Bow',       how: 'Make 25 finds while clearing' },
+  { id: 'bunny',  name: 'Bunny Ears',    how: 'Earn 100,000 coins' },
+  { id: 'fez',    name: 'Fez',           how: 'Earn 1,000,000 coins' },
+  { id: 'hardhat',name: 'Hard Hat',      how: 'Have 30 buildings' },
+  { id: 'grad',   name: 'Graduation Cap',how: 'Reach 6 Journal milestones' },
+  { id: 'bonnet', name: 'Sun Bonnet',    how: 'Collect 100 eggs' },
+  { id: 'antenna',name: 'Bee Antennae',  how: 'Collect 50 honey' },
+  { id: 'duckling', name: 'Duckling',    how: 'Build a Duck House' },
+  { id: 'visor',  name: 'Sun Visor',     how: 'Harvest 5,000 crops' },
+  { id: 'wreath', name: 'Holly Wreath',  how: 'Win a Blue Ribbon' },
+  { id: 'nightcap', name: 'Nightcap',    how: 'Play for 24 hours' },
+];
+const FIND_HATS = ['flower', 'mushroom', 'leaf'];
+// every Meeple gets a way of getting about, picked at random when they're made
+const GAITS = [
+  { id: 'walk', name: 'Strolls' }, { id: 'moonwalk', name: 'Moonwalks' }, { id: 'slide', name: 'Slides' },
+  { id: 'waddle', name: 'Waddles' }, { id: 'skip', name: 'Skips' }, { id: 'float', name: 'Floats' },
+  { id: 'hop', name: 'Hops' }, { id: 'twirl', name: 'Twirls' }, { id: 'march', name: 'Marches' }, { id: 'tiptoe', name: 'Tiptoes' },
 ];
 // Journal milestones: discover n entries on a page for a permanent bonus or a decoration.
 const JOURNAL = [

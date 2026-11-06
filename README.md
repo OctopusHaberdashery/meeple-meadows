@@ -19,6 +19,13 @@ Grand Harvest Fair.
 - Faceless Meeples with little running legs, unlockable hats, editable names and speech-bubble emotes.
 - Buildings that are stuck waiting on an ingredient show what's missing, and the HUD can jump you to each one.
 - After the Grand Harvest Fair: endless Blue Ribbon goals, or start a new meadow with a Legacy bonus.
+- Pests: field mice nibble growing crops (the plant stops growing until a Meeple tends it) and squirrels steal
+  ripe ones. A Barn Owl Box catches mice, a Dog House chases squirrels off, and a Cat Tree does a little of both.
+- Ducks (Duck House by a pond) lay duck eggs and drop feathers. Bees fly out to nearby plants; plant clover,
+  marigold, borage or poppies near a hive for faster honey and bigger batches. Hives also make beeswax for the Chandlery.
+- Trees: buy seedlings at Market → Seeds (or find them clearing the woods) and plant oak, birch, pine, willow and maple
+  trees that give acorns, birch sap, resin, withies and maple sap for syrups, birch beer, acorn bread, baskets and candles.
+- Meeples have their crop for a head, a walking style of their own (moonwalk, slide, waddle, skip, float...) and 30 hats.
 - Fishing (optional): build a Fishing Dock beside a pond and give a Meeple the Fish job. Fishing XP
   unlocks rarer fish and raises their odds; tap the dock to play the reel-in mini-game. Fish go to the
   Smokehouse, the Sushi Counter, and several kitchen recipes.
@@ -43,10 +50,11 @@ plus on pause and level-up).
 
 - `web/`: the game itself (HTML5 canvas, plain JavaScript, no dependencies)
   - `js/data.js`: crops, goods, recipes, buildings, levels, upgrades. `PACE` scales every level requirement.
-  - `js/art.js` … `js/art4.js`: all art, drawn procedurally at load in a papercraft "sticker" style
+  - `js/art.js` … `js/art5.js`: all art, drawn procedurally at load in a papercraft "sticker" style
   - `js/world.js`: map generation, Meeple AI, crafting, saving
   - `js/world2.js`: discoveries, compost, orders, journal, hats, stats, Blue Ribbons, legacy
-  - `js/render.js`, `js/ui.js`, `js/ui2.js`, `js/audio.js`, `js/main.js`
+  - `js/world3.js`: pests and their hunters, bee flowers, trees, ducks, walking styles
+  - `js/render.js`, `js/ui.js`, `js/ui2.js`, `js/ui3.js`, `js/audio.js`, `js/main.js`
   - `dev/`: test helpers (autoplay bot, screenshots). Not included in the APK.
 - `android/`: WebView wrapper (`MainActivity.java`), manifest, icons, `build.sh`
 
@@ -63,8 +71,8 @@ Bump the version when installing over an older copy, e.g. `VERSION_CODE=3 VERSIO
 
 ## Pacing
 
-An autoplay bot that plays efficiently reached the final Fair after ~60 hours of
-in-game time (v1.5; the bot doesn't use orders, animals or compost, which add extra income). A human player will likely take longer. Set `PACE` in `web/js/data.js`
+An autoplay bot that plays efficiently reached the final Fair after ~58 hours of
+in-game time (v1.6, with pests and an owl and dog; the bot doesn't use orders, animals or compost, which add extra income). A human player will likely take longer. Set `PACE` in `web/js/data.js`
 to stretch or shrink the curve (e.g. `1.5` = 50% more produce per goal).
 
 You can test in a desktop browser by serving `web/` (e.g. `python -m http.server`);

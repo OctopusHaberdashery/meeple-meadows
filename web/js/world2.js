@@ -22,6 +22,7 @@ function initExtras(d) {
   d.stats.finds = d.stats.finds || 0;
   for (const m of d.meeples) if (m.hat === undefined) m.hat = m.crop === 'founder' ? 'straw' : null;
   for (const k in d.plots) d.plots[k].fert = d.plots[k].fert | 0;
+  initCritters(d);
 }
 
 // ---------------------------------------------------------------- journal
@@ -90,7 +91,7 @@ function rollFind(i, kind, cost) {
   if (Math.random() >= (FIND_CHANCE[kind] || 0)) return;
   const unfound = RELICS.filter(r => !S.relics[r.id]);
   const what = pickW([['coins', 40], ['produce', 24], ['relic', unfound.length ? 14 : 0], ['decor', 12],
-    ['lure', S.buildings.some(b => b.type === 'dock') ? 8 : 0], ['hat', S.hats.includes('flower') ? 0 : 3]]);
+    ['lure', S.buildings.some(b => b.type === 'dock') ? 8 : 0], ['hat', FIND_HATS.some(h => !S.hats.includes(h)) ? 3 : 0]]);
   const e = { t: 'find', i, what };
   if (what === 'coins') { e.n = Math.max(12, Math.round(cost * (1.5 + Math.random() * 2.5))); S.coins += e.n; }
   else if (what === 'produce') {
@@ -102,7 +103,7 @@ function rollFind(i, kind, cost) {
     e.n = Math.max(20, cost * 2); S.coins += e.n;
   } else if (what === 'decor') { e.id = FOUND_DECOR[(Math.random() * FOUND_DECOR.length) | 0]; S.found[e.id] = (S.found[e.id] || 0) + 1; }
   else if (what === 'lure') { e.n = 30 + fishLevel() * 15; addFishXP(e.n); }
-  else if (what === 'hat') { e.id = 'flower'; unlockHat('flower'); }
+  else if (what === 'hat') { const lk = FIND_HATS.filter(h => !S.hats.includes(h)); e.id = lk[(Math.random() * lk.length) | 0]; unlockHat(e.id); }
   S.stats.finds++;
   emit(e);
 }

@@ -107,7 +107,8 @@ function addBuilding(type, x, y, free) {
   if (type === 'creator') Object.assign(b, { queue: [], t: 0 });
   S.buildings.push(b);
   BMAP[b.id] = b;
-  if (type === 'coop' || type === 'barn' || type === 'hive') { const r = RECIPES.find(x => x.at === type && recipeUnlocked(x)); if (r) setRecipe(b, r.id); }
+  if (type === 'coop' || type === 'barn' || type === 'hive' || type === 'duckhouse' || BUILDINGS[type].tree) { const r = RECIPES.find(x => x.at === type && recipeUnlocked(x)); if (r) setRecipe(b, r.id); }
+  if (BUILDINGS[type].tree) b.age = 0;
   if (!free) S.built[type] = (S.built[type] || 0) + 1;
   return b;
 }
@@ -147,6 +148,7 @@ function makeMeeple(crop, x, y) {
     col, trait: st.trait,
     speed: +(st.speed * v()).toFixed(2), carry: st.carry, work: +(st.work * v()).toFixed(2),
     x, y, path: [], task: null, hand: [], can: 0, farm: true, haul: true, water: true, wait: 0, bob: Math.random() * 6, face: 1, act: 0,
+    gait: randGait(),
   };
 }
 
@@ -160,7 +162,7 @@ const canCap = m => 4 + 3 * upg('cans') + Math.floor(m.carry / 2);
 const hasWell = () => S.buildings.some(b => b.type === 'well');
 const craftMult = () => 1 + 0.12 * upg('copper') + JB.craft;
 const sellPrice = id => Math.max(1, Math.round(ITEM[id].price * (1 + 0.1 * upg('haggle') + JB.sell) * legacyMult()));
-const cropUnlocked = id => LEVELS.findIndex(l => l.crop === id) <= S.level;
+const cropUnlocked = id => CROP[id] && CROP[id].flower ? S.level >= CROP[id].lvl : LEVELS.findIndex(l => l.crop === id) <= S.level;
 const bUnlocked = t => BUILDINGS[t].lvl <= S.level;
 const recipeUnlocked = r => r.lvl <= S.level;
 function bCount(type) { return S.buildings.filter(b => b.type === type).length; }
@@ -217,6 +219,7 @@ function doClear(i) {
   emit({ t: 'clear', i, kind });
   if (window.R && R.ready) R.groundDirty(i);
   rollFind(i, kind, c);
+  treeSeedDrop(i, kind);
   return true;
 }
 function tileFree(i, allowPath) {
@@ -233,7 +236,7 @@ function canPlace(type, x, y, moving) {
     else if (!tileFree(i, true)) return false;
   }
   if (type === 'plot' || type === 'path') return true;
-  if (type === 'dock' && dockWater({ x, y }) < 0) return false;
+  if ((type === 'dock' || type === 'duckhouse') && dockWater({ x, y }) < 0) return false;
   if (BUILDINGS[type].walk) {
     for (let yy = 0; yy < d.h; yy++) for (let xx = 0; xx < d.w; xx++) if (GHMAP[idx(x + xx, y + yy)] || S.floor[idx(x + xx, y + yy)] === FLOOR.PLOT) return false;
     return true;
@@ -265,6 +268,18 @@ function wouldBlock(type, x, y, moving) {
     }
   }
   for (const b of all) { const a = accessOf(b); if (!a.length || !a.some(t => seen[t])) return true; }
+  // nor wall any Meeple or garden plot off from the rest of the homestead
+  const seen0 = new Uint8Array(MW * MH), walk0 = i => S.cover[i] === COVER.NONE && (!OCC[i] || (moving && OCC[i] === moving.id));
+  const q0 = [starts[0]]; seen0[starts[0]] = 1;
+  while (q0.length) {
+    const c = q0.pop(), cx = c % MW, cy = (c / MW) | 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cx + dx, ny = cy + dy; if (!inMap(nx, ny)) continue;
+      const n = idx(nx, ny); if (seen0[n] || !walk0(n)) continue; seen0[n] = 1; q0.push(n);
+    }
+  }
+  for (const m of S.meeples) { const t = tileOf(m); if (seen0[t] && !seen[t] && !block[t]) return true; }
+  for (const k in S.plots) if (!S.plots[k].gh && seen0[k] && !seen[k]) return true;
   return false;
 }
 function place(type, x, y) {
@@ -272,10 +287,12 @@ function place(type, x, y) {
   const d = BUILDINGS[type];
   if (d.max && bCount(type) >= d.max) return false;
   if (d.found && !(S.found[type] > 0)) return false;
+  if (d.tree && !(S.inv[TREE_OF[type].seed] > 0)) return false;
   const cost = bCost(type);
   if (S.coins < cost) return false;
   S.coins -= cost;
   if (d.found) S.found[type]--;
+  if (d.tree) invTake(TREE_OF[type].seed, 1);
   const i = idx(x, y);
   if (type === 'plot') { makePlot(i, lastPlotCrop(), false); S.built.plot = (S.built.plot || 0) + 1; computePlotBonus(); }
   else if (type === 'path') { S.floor[i] = FLOOR.PATH; }
@@ -464,6 +481,11 @@ function pickTask(m) {
     }
     if (best && goTo(m, accessOfB(best))) { best.claim = m.id; m.task = { type: 'collect', b: best.id }; return; }
   }
+  // chewed plants, and mice sitting in the beds
+  if (m.farm && MEND_ANY) {
+    const r = bfs(s, i => needsMend(S.plots[i]));
+    if (r) { S.plots[r.goal].claim = m.id; m.task = { type: 'mend', plot: r.goal }; m.path = r.path; return; }
+  }
   // watering is mixed in with harvesting so busy farms still get watered
   if (m.water !== false && hasWell() && Math.random() < (m.farm ? 0.35 : 1) && waterTask(m, s)) return;
   // 2. harvest
@@ -603,6 +625,14 @@ function arrive(m, dt) {
       if (m.hand.length >= mCarry(m)) { b.claim = 0; m.task = null; }
       return;
     }
+    case 'mend': {
+      const p = S.plots[t.plot];
+      if (!p) { m.task = null; break; }
+      m.act += dt * mWork(m); if (m.act < 1.4) return; m.act = 0;
+      if (p.pest) shoo(pestById(p.pest), true);
+      p.dmg = 0; p.claim = 0; emote(m, 'heart', 0.6); emit({ t: 'mend', i: t.plot });
+      m.task = null; break;
+    }
     case 'fill': {
       m.act += dt; if (m.act < 1.0) return; m.act = 0;
       m.can = canCap(m); emit({ t: 'fill', x: m.x, y: m.y });
@@ -698,20 +728,21 @@ function update(dt) {
     const p = S.plots[k];
     if (p.st === 1 && plotInSeason(p)) {
       if (raining && !p.gh && (p.wet | 0) < 3) p.wet = 3;
+      if (p.dmg || p.pest) continue;
       p.t += dt * growMult(p);
-      if (p.t >= growTarget(p)) { p.st = 2; emit({ t: 'ripe', i: +k }); }
+      if (p.t >= growTarget(p)) { if (CROP[p.crop].flower) p.st = 3; else { p.st = 2; emit({ t: 'ripe', i: +k }); } }
     }
   }
   // processors
   for (const b of S.buildings) {
-    if (BUILDINGS[b.type].proc && b.recipe) {
+    if (BUILDINGS[b.type].proc && b.recipe && treeGrown(b)) {
       const r = RECIPE[b.recipe];
       if (b.phase === 'gather') {
         let ok = true; for (const k in r.in) if ((b.got[k] || 0) < r.in[k]) { ok = false; break; }
         if (ok) { b.phase = 'work'; b.t = 0; b.got = {}; }
       } else if (b.phase === 'work') {
-        b.t += dt * craftMult();
-        if (b.t >= r.t) { b.phase = 'done'; b.out = r.out[1]; S.stats.crafted += r.out[1]; emit({ t: 'crafted', b: b.id }); }
+        b.t += dt * craftMult() * workMult(b);
+        if (b.t >= r.t) { b.phase = 'done'; b.out = r.out[1] + batchDone(b); S.stats.crafted += b.out; emit({ t: 'crafted', b: b.id }); }
       }
     }
     if (b.type === 'creator' && b.queue.length) {
@@ -728,6 +759,7 @@ function update(dt) {
   }
   for (const m of S.meeples) updateMeeple(m, dt);
   updateExtras(dt);
+  updateCritters(dt);
   // auto-sell
   _autoT += dt;
   if (_autoT > 2) {
@@ -781,7 +813,7 @@ function saveGame() {
     const snap = JSON.parse(serialize());
     for (const m of snap.meeples) { for (const it of m.hand) snap.inv[it] = (snap.inv[it] || 0) + 1; m.hand = []; }
     for (const b of snap.buildings) if (b.transit) b.transit = {}, b.claim = 0;
-    for (const k in snap.plots) snap.plots[k].claim = 0, snap.plots[k].wclaim = 0;
+    for (const k in snap.plots) snap.plots[k].claim = 0, snap.plots[k].wclaim = 0, snap.plots[k].pest = 0;
     json = JSON.stringify(snap);
   } catch (e) { console.error(e); return false; }
   // two independent copies: the app's own file (Android) and browser storage; either one is enough

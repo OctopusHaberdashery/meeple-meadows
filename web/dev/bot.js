@@ -111,6 +111,7 @@ window.BOT = (function () {
       } else break;
     }
     if (bCount('well') < 3 && S.coins > bCost('well') * 3) { const sp = findSpot('well'); if (sp) place('well', sp[0], sp[1]); }
+    for (const t of ['owlbox', 'doghouse']) if (bUnlocked(t) && bCount(t) < 2 && S.coins > bCost(t) * 3) { const sp = findSpot(t); if (sp) place(t, sp[0], sp[1]); }
     if (bUnlocked('greenhouse') && bCount('greenhouse') < 2 && S.coins > bCost('greenhouse') * 1.2) {
       let sp = findSpot('greenhouse');
       for (let k = 0; !sp && k < 30; k++) { const cl = cheapestClear(); if (!cl || cl[1] > S.coins * 0.05) break; doClear(cl[0]); sp = findSpot('greenhouse'); }

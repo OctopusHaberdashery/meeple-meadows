@@ -298,12 +298,19 @@ R.onEvent = function (e) {
     }
     case 'find': {
       const { x, y } = tileC(e.i);
-      const icon = e.what === 'coins' ? 'ui_coin' : e.what === 'produce' ? e.id : e.what === 'relic' ? 'ui_relic_' + e.id : e.what === 'lure' ? 'minnow' : e.what === 'hat' ? 'ui_hat_flower' : 'ui_star';
+      const icon = e.what === 'coins' ? 'ui_coin' : e.what === 'produce' ? e.id : e.what === 'relic' ? 'ui_relic_' + e.id : e.what === 'lure' ? 'minnow' : e.what === 'hat' ? 'ui_hat_' + e.id : e.what === 'seed' ? e.id : 'ui_star';
       for (let k = 0; k < 14; k++) addPart({ type: 'spark', x: x + (Math.random() - 0.5) * 30, y: y - 10 - Math.random() * 24, max: 1.1, size: 6 });
       addPart({ type: 'float', x: x + 8, y: y - 26, vy: -22, max: 2.2, icon, text: e.n && e.what !== 'lure' ? '+' + fmt(e.n) : '!' });
       AUDIO.sfx('ding'); break;
     }
     case 'fert': { const { x, y } = tileC(e.i); for (let k = 0; k < 7 * pq + 2; k++) addPart({ type: 'chip', x: x + (Math.random() - 0.5) * 24, y: y - 4, vx: (Math.random() - 0.5) * 40, vy: -40 - Math.random() * 30, g: 220, max: 0.6, col: k % 3 ? '#4a3020' : '#7cc24a', size: 1.6 }); break; }
+    case 'nibble': { const { x, y } = tileC(e.i); for (let k = 0; k < 8; k++) addPart({ type: 'chip', x: x + (Math.random() - 0.5) * 20, y: y - 4, vx: (Math.random() - 0.5) * 50, vy: -30 - Math.random() * 30, g: 200, max: 0.6, col: CROP[S.plots[e.i] ? S.plots[e.i].crop : 'carrot'].leaf, size: 1.6 }); AUDIO.sfx('pop'); break; }
+    case 'stolen': { const { x, y } = tileC(e.i); addPart({ type: 'float', x, y: y - 20, vy: -24, max: 1.4, icon: e.crop, text: '-1' }); break; }
+    case 'dropped': addPart({ type: 'float', x: e.x, y: e.y - 14, vy: -20, max: 1.4, icon: e.crop, text: '+1' }); break;
+    case 'scare': case 'pounce': for (let k = 0; k < 5; k++) addPart({ type: 'poof', x: e.x + (Math.random() - 0.5) * 16, y: e.y - 4, max: 0.6, size: 7 }); break;
+    case 'caught': { const b = BMAP[e.b]; if (b) for (let k = 0; k < 6; k++) addPart({ type: 'spark', x: (b.x + 0.5) * T + (Math.random() - 0.5) * 20, y: (b.y + 1) * T - 60 - Math.random() * 40, max: 0.9, size: 4 }); break; }
+    case 'mend': { const { x, y } = tileC(e.i); for (let k = 0; k < 6; k++) addPart({ type: 'spark', x: x + (Math.random() - 0.5) * 24, y: y - 10 - Math.random() * 14, max: 0.8, size: 4 }); break; }
+    case 'treegrown': { const b = BMAP[e.b]; if (b) for (let k = 0; k < 10; k++) addPart({ type: 'spark', x: (b.x + 0.5) * T + (Math.random() - 0.5) * 50, y: b.y * T - 30 - Math.random() * 50, max: 1.1, size: 5 }); AUDIO.sfx('ding'); break; }
     case 'spent': { const { x, y } = tileC(e.i); for (let k = 0; k < 6 * pq; k++) addPart({ type: 'chip', x, y, vx: (Math.random() - 0.5) * 60, vy: -30 - Math.random() * 30, g: 200, max: 0.6, col: '#a8884a', size: 2 }); break; }
     case 'plant': { const { x, y } = tileC(e.i); for (let k = 0; k < 5 * pq; k++) addPart({ type: 'chip', x, y, vx: (Math.random() - 0.5) * 50, vy: -30 - Math.random() * 30, g: 200, max: 0.5, col: '#7a5232', size: 1.8 }); break; }
     case 'water': { const { x, y } = tileC(e.i); for (let k = 0; k < 12 * pq + 3; k++) addPart({ type: 'drop', x: x + (Math.random() - 0.5) * 30, y: y - 18 - Math.random() * 6, vx: (Math.random() - 0.5) * 30, vy: 10 + Math.random() * 20, g: 300, max: 0.45, size: 1.4 }); AUDIO.sfx('water'); break; }
@@ -401,6 +408,8 @@ R.draw = function (dt) {
     list.push({ y: (b.y + d.h) * T - 2, k: 2, b });
   }
   for (const m of S.meeples) if (m.x > x0 - T && m.x < x1 + T && m.y > y0 - T && m.y < y1 + T * 2) list.push({ y: m.y + 6, k: 3, m });
+  for (const p of PESTS) if (p.x > x0 - T && p.x < x1 + T && p.y > y0 - T && p.y < y1 + T * 2) list.push({ y: p.y + 4, k: 4, p });
+  for (const b of S.buildings) { const g = GUARD[b.id]; if (g && g.st !== 'home' && HUNTERS[b.type].kind !== 'owl') list.push({ y: g.y + 4, k: 5, b, g }); }
   list.sort((a, b) => a.y - b.y);
 
   const wind = Math.sin(t * 0.6) * 0.5 + Math.sin(t * 1.7) * 0.2;
@@ -409,10 +418,14 @@ R.draw = function (dt) {
     if (o.k === 0) drawCover(ctx, o.i, t, wind, sway);
     else if (o.k === 1) drawPlot(ctx, o.i, t, wind, sway);
     else if (o.k === 2) drawBuilding(ctx, o.b, t, dt);
-    else drawMeeple(ctx, o.m, t);
+    else if (o.k === 3) drawMeeple(ctx, o.m, t);
+    else if (o.k === 4) drawPest(ctx, o.p, t);
+    else drawHunter(ctx, o.b, o.g, t);
   }
 
   drawFishingLines(ctx);
+  for (const b of S.buildings) { const g = GUARD[b.id]; if (g && g.st !== 'home' && HUNTERS[b.type].kind === 'owl') drawHunter(ctx, b, g, t); }
+  drawBees(ctx, t, x0, y0, x1, y1);
   drawParticles(ctx, dt);
   drawAmbient(ctx, dt, x0, y0, x1, y1);
   for (const b of S.buildings) if (BUILDINGS[b.type].proc || b.type === 'creator') drawStatus(ctx, b, t);
@@ -500,9 +513,10 @@ function drawPlot(ctx, i, t, wind, sway) {
   if (p.st === 0) { ctx.globalAlpha = live ? 0.75 : 0.35; drawSprite(ctx, ART.icons[p.crop], x - 8, y - 8, 0.5); ctx.globalAlpha = 1; return; }
   const f = p.t / growTarget(p);
   // a living plant regrowing its next harvest stays full-sized rather than restarting as a seedling
-  const stage = p.st === 2 ? 3 : (p.gen | 0) > 0 ? 2 : (f < 0.15 ? 0 : f < 0.35 ? 1 : 2);
+  const stage = p.st >= 2 ? 3 : (p.gen | 0) > 0 ? 2 : (f < 0.15 ? 0 : f < 0.35 ? 1 : 2);
   const s = plantSprite(p.crop, stage);
   if (!live) ctx.globalAlpha = 0.55;
+  if (p.dmg) ctx.globalAlpha = 0.6;
   if (sway && live && stage >= 2) {
     const sw = (wind * 0.06 + Math.sin(t * 2 + i) * 0.02);
     ctx.save(); ctx.translate(x, y + 18); ctx.transform(1, 0, sw, 1, 0, 0); drawSprite(ctx, s, 0, -18); ctx.restore();
@@ -511,6 +525,12 @@ function drawPlot(ctx, i, t, wind, sway) {
   if (!live) { // dormant until its season comes back
     ctx.beginPath(); ctx.arc(x + 13, y - 13, 7, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,250,235,0.92)'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.8; ctx.stroke();
     ctx.fillStyle = '#6a4a32'; ctx.fillRect(x + 10, y - 16.5, 2, 7); ctx.fillRect(x + 14, y - 16.5, 2, 7);
+  } else if (p.dmg) {
+    // chewed: crumbs on the soil and a little nibbled-leaf sign
+    [[-8, 12], [6, 14], [11, 6], [-3, 16]].forEach(([dx, dy]) => ell(ctx, x + dx, y + dy, 1.4, 0.9, '#c8b088'));
+    ctx.beginPath(); ctx.arc(x + 13, y - 13, 7, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,240,225,0.95)'; ctx.fill(); ctx.strokeStyle = '#c8602a'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.save(); ctx.beginPath(); ctx.arc(x + 13, y - 13, 6, 0, Math.PI * 2); ctx.clip();
+    leaf(ctx, x + 9, y - 10, -0.8, 8, 3.2, '#5aa335'); ell(ctx, x + 15.5, y - 15.5, 2.4, 2.4, 'rgba(255,240,225,1)'); ell(ctx, x + 13, y - 18, 1.8, 1.8, 'rgba(255,240,225,1)'); ctx.restore();
   } else if (p.st === 2) {
     ctx.globalAlpha = 0.6 * (0.5 + 0.5 * Math.sin(t * 4 + i)); drawSprite(ctx, ART.icons.ui_star, x + 10, y - 26, 0.28); ctx.globalAlpha = 1;
   }
@@ -520,6 +540,7 @@ function drawBuilding(ctx, b, t, dt) {
   const bx = (b.x + d.w / 2) * T, by = (b.y + d.h) * T;
   if (b.type === 'greenhouse') { drawSprite(ctx, greenhouseSprite(ghOpen(b)), bx, by); return; }
   if (b.type === 'dock') drawPier(ctx, b);
+  if (BUILDINGS[b.type].tree) { drawOrchardTree(ctx, b, bx, by, t); return; }
   const s = buildingSprite(b.type);
   const working = b.phase === 'work' || (b.type === 'creator' && b.queue.length);
   ell(ctx, bx + 3, by - d.h * T * 0.4, d.w * T * 0.5, d.h * T * 0.3, 'rgba(20,40,15,0.24)');
@@ -575,9 +596,17 @@ function drawBuilding(ctx, b, t, dt) {
       drawCow(ctx, bx - 22 + Math.sin(ph) * 8, by - 2, Math.cos(ph) > 0 ? 1 : -1, t + b.id);
       break;
     }
-    case 'hive':
-      for (let k = 0; k < 4; k++) drawBee(ctx, bx + Math.cos(t * 1.9 + k * 1.6) * (13 + k * 3), by - 34 + Math.sin(t * 2.7 + k * 2) * 9, t + k);
+    case 'duckhouse': {
+      const w = dockWater(b);
+      if (w >= 0) { const c = tileC(w); for (let k = 0; k < 2; k++) { const ph = t * 0.4 + k * 3 + b.id; drawDuck(ctx, c.x + Math.sin(ph) * 14, c.y + 4 + Math.cos(ph * 0.8) * 6 - k * 4, Math.cos(ph) > 0 ? 1 : -1, t + k, true); } }
+      const ph = t * 0.5 + b.id; drawDuck(ctx, bx - 16 + Math.sin(ph) * 6, by - 3, Math.cos(ph) > 0 ? 1 : -1, t, false);
       break;
+    }
+    case 'owlbox': case 'doghouse': case 'cattree': {
+      const g = GUARD[b.id];
+      if (!g || g.st === 'home') { const h = guardHome(b); drawHunter(ctx, b, g || { x: h.x, y: h.y, st: 'home', face: 1 }, t); }
+      break;
+    }
     case 'compost':
       if (S.compost && S.compost.mat >= COMPOST_PER && Math.random() < 0.04 * pq) addPart({ type: 'steam', x: bx + (Math.random() - 0.5) * 16, y: by - 38, vy: -10, max: 1.8, size: 4 });
       break;
@@ -606,6 +635,25 @@ function drawBuilding(ctx, b, t, dt) {
         if (Math.random() < 0.15 * pq) addPart({ type: 'spark', x: bx + 30 + (Math.random() - 0.5) * 8, y: by - 112, vy: -30, max: 1, size: 4 });
       }
       break;
+  }
+}
+// a planted tree grows from a sapling; grown trees show what they're giving (a sap bucket, acorns...)
+function drawOrchardTree(ctx, b, bx, by, t) {
+  const tr = TREE_OF[b.type], a = Math.min(1, (b.age || 0) / TREE_GROW), sc = 0.28 + 0.72 * (a * a * (3 - 2 * a));
+  ell(ctx, bx + 3, by - 8, 18 * sc + 4, 6 * sc + 2, 'rgba(20,40,15,0.26)');
+  drawSprite(ctx, orchardSprite(b.type), bx, by - 6, sc);
+  if (a < 1) return;
+  const ty = by - 12;
+  if (tr.prod === 'maplesap' || tr.prod === 'birchsap') {
+    ctx.fillStyle = '#7a8288'; ctx.fillRect(bx + 3, ty - 12, 5, 1.6);
+    rrect(ctx, bx + 4, ty - 10, 7, 8, 1.5); ctx.fillStyle = '#a8b0b8'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.7; ctx.stroke();
+    const ph = (t * 0.8 + b.id) % 1; ell(ctx, bx + 7.4, ty - 10 + ph * 3, 0.8, 1.1, rgba(tr.prod === 'maplesap' ? '#e8b870' : '#e8f4ff', 1 - ph));
+  } else if (tr.prod === 'resin') {
+    ell(ctx, bx + 3.5, ty - 8, 1.6, 2.4, '#f2a828', INK, 0.4);
+  } else if (tr.prod === 'acorns') {
+    [[-10, 2], [8, 3], [12, -1]].forEach(([dx, dy]) => { ell(ctx, bx + dx, by - 6 + dy, 1.8, 2.2, '#b07838', INK, 0.4); ell(ctx, bx + dx, by - 7.6 + dy, 2, 1, '#7a5a32'); });
+  } else if (tr.prod === 'withies') {
+    ctx.save(); ctx.translate(bx + 12, by - 8); ctx.rotate(-0.4); for (let k = 0; k < 4; k++) { ctx.fillStyle = k % 2 ? '#9a7a4a' : '#b8945a'; ctx.fillRect(-7, -k * 1.4, 14, 1.2); } ctx.restore();
   }
 }
 // fishing line + bobber, drawn after everything so the pier can't hide them;
@@ -660,22 +708,40 @@ function flame(ctx, x, y, t, s) {
     ctx.fillStyle = ['#ff7a1a', '#ffb02a', '#fff2a0'][k]; ctx.fill();
   }
 }
+// each Meeple has its own way of getting about (m.gait): the walk cycle, bounce, lean and lift change with it
+function gaitPose(m) {
+  const mv = m.moving, B = m.bob, TAU = Math.PI * 2, F = MEEPLE_RUN_FRAMES;
+  const cyc = rate => Math.floor(B * rate / TAU * F) % F;
+  const P = { fr: mv ? cyc(11) : -1, bob: mv ? Math.abs(Math.sin(B * 11)) * 3.2 : (m.act > 0 ? Math.abs(Math.sin(B * 14)) * 2 : Math.sin(B * 2) * 0.6),
+    tilt: mv ? Math.sin(B * 11) * 0.09 : 0, face: m.face, sx: 1, lift: 0, shadow: 1, sq: mv ? 1 + Math.sin(B * 22) * 0.03 : 1 };
+  if (!mv) { if (m.gait === 'float') { P.lift = 6 + Math.sin(B * 2.2) * 1.5; P.shadow = 0.6; } return P; }
+  switch (m.gait) {
+    case 'moonwalk': P.face = -m.face; P.fr = (F - P.fr) % F; P.tilt *= -0.4; P.bob *= 0.35; break;
+    case 'slide': P.fr = -1; P.bob = 0; P.sq = 1; P.tilt = 0.16 * m.face; break;
+    case 'waddle': P.fr = cyc(6); P.tilt = Math.sin(B * 6) * 0.3; P.bob = Math.abs(Math.sin(B * 6)) * 1.4; break;
+    case 'skip': P.bob = Math.abs(Math.sin(B * 7)) * 8; P.fr = P.bob > 3 ? 1 : cyc(7); P.tilt = Math.sin(B * 7) * 0.06; break;
+    case 'float': P.fr = -1; P.bob = 0; P.sq = 1; P.lift = 7 + Math.sin(B * 2.2) * 2; P.tilt = 0.06 * m.face; P.shadow = 0.55; break;
+    case 'hop': { const h = Math.abs(Math.sin(B * 9)); P.fr = -1; P.bob = h * 6; P.sq = h < 0.2 ? 0.86 : 1.06; P.tilt = 0; break; }
+    case 'twirl': { const ph = (B * 0.45) % 1; if (ph < 0.22) { const c = Math.cos(ph / 0.22 * TAU); P.sx = c < 0 ? Math.min(-0.15, c) : Math.max(0.15, c); } break; }
+    case 'march': P.fr = cyc(16); P.tilt = 0; P.bob = Math.abs(Math.sin(B * 16)) * 1.8; P.sq = 1; break;
+    case 'tiptoe': P.fr = cyc(8); P.lift = 1.6; P.bob = Math.abs(Math.sin(B * 8)) * 1.1; P.tilt = Math.sin(B * 4) * 0.12; break;
+  }
+  return P;
+}
 function drawMeeple(ctx, m, t) {
-  const moving = m.moving;
-  const fr = moving ? Math.floor(m.bob * 11 / (Math.PI * 2) * MEEPLE_RUN_FRAMES) % MEEPLE_RUN_FRAMES : -1, key = m.col + fr;
+  const P = gaitPose(m), headless = m.crop !== 'founder' && !!ART.icons[m.crop], key = m.col + P.fr + (headless ? 'h' : '');
   let spr = R.meepleSprites[key];
-  if (!spr) spr = R.meepleSprites[key] = meepleSprite(m.col, null, fr);
-  const bob = moving ? Math.abs(Math.sin(m.bob * 11)) * 3.2 : (m.act > 0 ? Math.abs(Math.sin(m.bob * 14)) * 2 : Math.sin(m.bob * 2) * 0.6);
-  const tilt = moving ? Math.sin(m.bob * 11) * 0.09 : 0;
-  ell(ctx, m.x, m.y + 2, 9 - bob * 0.5, 3.5, 'rgba(20,30,10,0.3)');
-  ctx.save(); ctx.translate(m.x, m.y + 2 - bob); ctx.rotate(tilt);
-  const sq = moving ? 1 + Math.sin(m.bob * 22) * 0.03 : 1;
-  ctx.scale(m.face / sq, sq);
+  if (!spr) spr = R.meepleSprites[key] = meepleSprite(m.col, null, P.fr, headless);
+  const bob = P.bob + P.lift;
+  ell(ctx, m.x, m.y + 2, (9 - P.bob * 0.5) * P.shadow, 3.5 * P.shadow, 'rgba(20,30,10,' + (0.3 * P.shadow).toFixed(2) + ')');
+  if (m.gait === 'slide' && m.moving && Math.random() < 0.06 * R.q.parts) addPart({ type: 'poof', x: m.x - m.face * 8, y: m.y + 1, max: 0.5, size: 4 });
+  ctx.save(); ctx.translate(m.x, m.y + 2 - bob); ctx.rotate(P.tilt);
+  ctx.scale(P.face * P.sx / P.sq, P.sq);
   drawSprite(ctx, spr, 0, 0);
-  if (m.hat && HAT_DRAW[m.hat]) drawSprite(ctx, hatSprite(m.hat), 0, -17.6);
-  ctx.scale(m.face, 1);
-  // a little badge of the crop they were made from
-  if (m.crop !== 'founder' && ART.icons[m.crop]) drawSprite(ctx, ART.icons[m.crop], -4.4, -13.6, 0.27);
+  // the produce they were made from is their head
+  if (headless) drawProduceHead(ctx, m.crop);
+  if (m.hat && HAT_DRAW[m.hat]) drawSprite(ctx, hatSprite(m.hat), 0, -17.6 - (headless ? 2 : 0));
+  ctx.scale(1 / (P.face * P.sx), 1);
   const fishing = m.task && m.task.type === 'fish' && !m.path.length && BMAP[m.task.b];
   if (fishing) {
     ctx.save(); ctx.scale(m.face, 1);
@@ -690,15 +756,62 @@ function drawMeeple(ctx, m, t) {
   }
   ctx.restore();
   if (m.hand.length) {
-    const n = Math.min(m.hand.length, 4);
-    for (let k = 0; k < n; k++) drawSprite(ctx, ART.icons[m.hand[k]], m.x - 9 + (k % 2) * 4, m.y - 40 - bob - k * 5, 0.42);
-    if (m.hand.length > 4) { ctx.font = 'bold 8px sans-serif'; ctx.fillStyle = '#fffaf0'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeText('×' + m.hand.length, m.x + 10, m.y - 44 - bob); ctx.fillText('×' + m.hand.length, m.x + 10, m.y - 44 - bob); }
+    const n = Math.min(m.hand.length, 4), top = m.hat ? 46 : 42;
+    for (let k = 0; k < n; k++) drawSprite(ctx, ART.icons[m.hand[k]], m.x - 9 + (k % 2) * 4, m.y - top - bob - k * 5, 0.42);
+    if (m.hand.length > 4) { ctx.font = 'bold 8px sans-serif'; ctx.fillStyle = '#fffaf0'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeText('×' + m.hand.length, m.x + 10, m.y - top - 4 - bob); ctx.fillText('×' + m.hand.length, m.x + 10, m.y - top - 4 - bob); }
   }
-  if (m.emo) drawEmote(ctx, m.x + 9, m.y - 27 - bob, m.emo.k, Math.max(0, Math.min(1, m.emo.t * 2, (2.4 - m.emo.t) * 5)));
+  if (m.emo) drawEmote(ctx, m.x + 10, m.y - 28 - bob, m.emo.k, Math.max(0, Math.min(1, m.emo.t * 2, (2.4 - m.emo.t) * 5)));
   if (R.sel && R.sel.kind === 'm' && R.sel.id === m.id) {
     selRing(ctx, m.x, m.y + 2, 14, 6);
     ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
-    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.strokeText(m.name, m.x, m.y - 50 - bob); ctx.fillStyle = '#fffaf0'; ctx.fillText(m.name, m.x, m.y - 50 - bob);
+    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.strokeText(m.name, m.x, m.y - 52 - bob); ctx.fillStyle = '#fffaf0'; ctx.fillText(m.name, m.x, m.y - 52 - bob);
+  }
+}
+// ---------------------------------------------------------------- critters
+function drawPest(ctx, p, t) {
+  if (p.st === 'carried') return;   // drawn with whatever carries it
+  const mv = p.st !== 'eat';
+  if (p.kind === 'mouse') drawMouse(ctx, p.x, p.y, p.face, t + p.id, mv, !mv);
+  else { drawSquirrel(ctx, p.x, p.y, p.face, t + p.id, mv); if (p.carry && ART.icons[p.carry]) drawSprite(ctx, ART.icons[p.carry], p.x + p.face * 4 - 5, p.y - 14, 0.32); }
+}
+function drawHunter(ctx, b, g, t) {
+  const H = HUNTERS[b.type], st = g.st, out = st !== 'home';
+  const prey = st === 'carry' ? pestById(g.prey) : null;
+  if (H.kind === 'owl') {
+    drawOwl(ctx, g.x, g.y, t + b.id, out, g.face);
+    if (prey) drawMouse(ctx, g.x, g.y + 9, g.face, t, false, false);
+  } else if (H.kind === 'dog') drawDog(ctx, g.x, g.y, g.face, t + b.id, out ? 'run' : 'lie');
+  else { drawCat(ctx, g.x, g.y, g.face, t + b.id, out ? 'run' : 'sit'); if (prey) { ctx.save(); ctx.translate(g.x + g.face * 7, g.y - 5); ctx.scale(0.7, 0.7); drawMouse(ctx, 0, 0, g.face, t, false, false); ctx.restore(); } }
+  if (g.bark > 0) drawEmote(ctx, g.x + 6, g.y - (H.kind === 'owl' ? 12 : 14), 'wow', Math.min(1, g.bark * 2));
+}
+// bees fly out from each hive to nearby flowers (or crops), dab about, and come home with pollen
+function drawBees(ctx, t, x0, y0, x1, y1) {
+  for (const b of S.buildings) {
+    if (b.type !== 'hive') continue;
+    const hx = (b.x + 0.5) * T, hy = (b.y + 1) * T - 30;
+    if (hx < x0 - T * 6 || hx > x1 + T * 6 || hy < y0 - T * 6 || hy > y1 + T * 6) continue;
+    if (!b._beeT || b._beeT < R.time) {
+      const fl = [], crops = [];
+      for (let y = b.y - 4; y <= b.y + 4; y++) for (let x = b.x - 4; x <= b.x + 4; x++) {
+        if (!inMap(x, y)) continue; const i = idx(x, y), p = S.plots[i];
+        if (p && p.st >= 1) (CROP[p.crop].flower && p.st === 3 ? fl : crops).push(i);
+        const o = OCC[i]; if (o && BMAP[o] && BMAP[o].type === 'flowers') fl.push(i);
+      }
+      Object.defineProperty(b, '_bees', { value: fl.length ? fl.concat(fl, crops) : crops, writable: true, configurable: true, enumerable: false });
+      Object.defineProperty(b, '_beeT', { value: R.time + 4, writable: true, configurable: true, enumerable: false });
+    }
+    const tg = b._bees, n = 3 + Math.min(6, Math.floor(tg.length / 2));
+    for (let k = 0; k < 2; k++) drawBee(ctx, hx + Math.cos(t * 1.9 + k * 3) * 13, hy - 4 + Math.sin(t * 2.7 + k * 2) * 8, t + k);
+    if (!tg.length) continue;
+    for (let k = 0; k < n; k++) {
+      const per = 7 + (k % 3), c = (t + k * 2.3) / per, cyc = Math.floor(c), ph = c - cyc;
+      const dst = tileC(tg[Math.floor(hash2(b.id * 31 + k, cyc, 5) * tg.length) % tg.length]), dx = dst.x + (hash2(k, cyc, 6) - 0.5) * 20, dy = dst.y - 8 + (hash2(k, cyc, 7) - 0.5) * 12;
+      let x, y, pol = false;
+      if (ph < 0.35) { const f = ph / 0.35; x = hx + (dx - hx) * f; y = hy + (dy - hy) * f - Math.sin(f * Math.PI) * 18; }
+      else if (ph < 0.62) { const f = (ph - 0.35) / 0.27; x = dx + Math.cos(f * 14 + k) * 4; y = dy + Math.sin(f * 11 + k) * 2.5; pol = f > 0.5; }
+      else { const f = (ph - 0.62) / 0.38; x = dx + (hx - dx) * f; y = dy + (hy - dy) * f - Math.sin(f * Math.PI) * 14; pol = true; }
+      drawPollenBee(ctx, x + Math.sin(t * 9 + k) * 1.2, y, t + k, pol);
+    }
   }
 }
 function drawStatus(ctx, b, t) {
@@ -706,6 +819,7 @@ function drawStatus(ctx, b, t) {
   const x = (b.x + d.w / 2) * T, top = (b.y + d.h) * T - (d.w === 1 ? 74 : 124);
   let icon = null, frac = 0, mode = '';
   if (b.type === 'creator') { if (!b.queue.length) return; icon = b.queue[0]; frac = b.t / 20; mode = 'work'; }
+  else if (!treeGrown(b)) { icon = TREE_OF[b.type].seed; frac = (b.age || 0) / TREE_GROW; mode = 'work'; }
   else if (!b.recipe) mode = 'idle';
   else {
     const r = RECIPE[b.recipe]; icon = r.out[0];
