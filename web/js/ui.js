@@ -64,8 +64,10 @@ function toast(html, bad, icon) {
   setTimeout(() => { t.style.transition = 'opacity .4s'; t.style.opacity = 0; setTimeout(() => t.remove(), 400); }, bad ? 1800 : 2600);
   if (bad) AUDIO.sfx('error');
 }
-function modal(html, onclick) {
+// onBack: what the Android back button does while this window is up (default: just close it)
+function modal(html, onclick, onBack) {
   const m = $('modal');
+  UI.modalBack = onBack || null;
   m.innerHTML = '<div class="mbox">' + html + '</div>';
   m.classList.remove('hidden');
   m.onclick = e => {
@@ -75,7 +77,8 @@ function modal(html, onclick) {
   m.oninput = null; m.onchange = null;
   return m;
 }
-function closeModal() { $('modal').classList.add('hidden'); $('modal').innerHTML = ''; }
+// closing the last window always un-pauses, so the game can never be left frozen with no menu showing
+function closeModal() { $('modal').classList.add('hidden'); $('modal').innerHTML = ''; UI.modalBack = null; if (UI.inGame) UI.paused = false; }
 function modalOpen() { return !$('modal').classList.contains('hidden'); }
 function hidePop() { $('pop').classList.add('hidden'); }
 function showPop(sx, sy, html, onclick) {
@@ -929,7 +932,7 @@ function onGameEvent(e) {
 
 // ---------------------------------------------------------------- menus
 function handleBack() {
-  if (modalOpen()) { closeModal(); return true; }
+  if (modalOpen()) { const b = UI.modalBack; if (b) b(); else closeModal(); return true; }
   if (!$('pop').classList.contains('hidden')) { hidePop(); return true; }
   if (UI.mode) { setMode(null); return true; }
   if (UI.panel) { closePanel(); return true; }
@@ -997,7 +1000,7 @@ function openPause() {
     else if (a === 'settings') openSettings(true);
     else if (a === 'help') openHelp(true);
     else if (a === 'title') { saveGame(); closeModal(); UI.paused = false; toTitle(); }
-  });
+  }, () => { closeModal(); UI.paused = false; });
 }
 function openSettings(fromPause) {
   const sl = (k, l) => `<div class="setrow"><span>${l}</span><input type="range" min="0" max="1" step="0.05" value="${SET[k]}" data-k="${k}"></div>`;
@@ -1026,7 +1029,7 @@ function openSettings(fromPause) {
     } else if (a === 'reset') {
       const ls = SET.lastSlot; SET = Object.assign({}, SET_DEFAULT, { lastSlot: ls }); saveSettings(); applySettings(); R.setQuality(SET.quality); openSettings(fromPause);
     } else if (a === 'done') { if (fromPause) openPause(); else closeModal(); }
-  });
+  }, () => { saveSettings(); if (fromPause) openPause(); else closeModal(); });
   m.oninput = e => { const k = e.target.dataset.k; if (k) { SET[k] = +e.target.value; applySettings(); } };
   m.onchange = e => { if (e.target.dataset.k) { saveSettings(); AUDIO.sfx('pop'); } };
 }
@@ -1048,6 +1051,6 @@ function openHelp(fromPause) {
     <p>${iconImg('meeple', 'sm')} The <b>Meeple Creator</b> turns produce into new Meeples. Strawberry Meeples are fast; Potato and Pumpkin Meeples carry loads.</p>
     <p>${iconImg('book', 'sm')} Crafting buildings run <b>recipes</b>: pick one and haulers bring the ingredients. Chain them: Barley ➜ Malt ➜ Wort ➜ Beer, or Corn ➜ Cornmeal ➜ Grain Mash ➜ White Dog ➜ Whiskey!</p>
     <p>👆 Drag to look around, pinch to zoom. The game only progresses while it's open.</p></div>
-    <div class="btns"><button class="btn green" data-a="ok">Got it</button></div>`, () => { if (fromPause) openPause(); else closeModal(); });
+    <div class="btns"><button class="btn green" data-a="ok">Got it</button></div>`, () => { if (fromPause) openPause(); else closeModal(); }, () => { if (fromPause) openPause(); else closeModal(); });
 }
 ;(window.__stage = window.__stage || []).push('ui.js loaded');
