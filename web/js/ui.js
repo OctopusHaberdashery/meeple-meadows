@@ -68,13 +68,20 @@ function toast(html, bad, icon) {
   setTimeout(() => { t.style.transition = 'opacity .4s'; t.style.opacity = 0; setTimeout(() => t.remove(), 400); }, bad ? 1800 : 2600);
   if (bad) AUDIO.sfx('error');
 }
+// A tap on the meadow is followed by a click at the same spot, and by then that tap may have opened a panel,
+// pop-up or dialog there: tap a Meeple and the click landed on whichever button came up under the finger.
+// Nothing that a tap has only just put on screen is pressed by that same tap.
+let worldTapAt = -1e9, freshAt = -1e9;       // when the meadow was last tapped, and when something last came up over it
+const strayClick = () => freshAt >= worldTapAt && performance.now() - worldTapAt < 400;
 // onBack: what the Android back button does while this window is up (default: just close it)
 function modal(html, onclick, onBack) {
   const m = $('modal');
+  freshAt = performance.now();
   UI.modalBack = onBack || null;
   m.innerHTML = '<div class="mbox">' + html + '</div>';
   m.classList.remove('hidden');
   m.onclick = e => {
+    if (strayClick()) return;
     const el = e.target.closest('[data-a]');
     if (el) { AUDIO.sfx('click'); onclick && onclick(el.dataset.a, el.dataset.v, el); }
   };
@@ -86,9 +93,9 @@ function closeModal() { $('modal').classList.add('hidden'); $('modal').innerHTML
 function modalOpen() { return !$('modal').classList.contains('hidden'); }
 function hidePop() { $('pop').classList.add('hidden'); }
 function showPop(sx, sy, html, onclick) {
-  const p = $('pop'); p.innerHTML = html; p.classList.remove('hidden');
+  const p = $('pop'); p.innerHTML = html; p.classList.remove('hidden'); freshAt = performance.now();
   p.style.left = Math.max(100, Math.min(window.innerWidth - 100, sx)) + 'px'; p.style.top = Math.max(110, sy - 10) + 'px';
-  p.onclick = e => { const el = e.target.closest('[data-a]'); if (el) onclick(el.dataset.a, el.dataset.v); };
+  p.onclick = e => { if (strayClick()) return; const el = e.target.closest('[data-a]'); if (el) onclick(el.dataset.a, el.dataset.v); };
 }
 
 // ---------------------------------------------------------------- HUD
@@ -152,6 +159,7 @@ function updateHud() {
   updateAlerts();
 }
 $('modebar') && ($('modebar').onclick = e => {
+  if (strayClick()) return;
   if (e.target.closest('[data-a="done"]')) { AUDIO.sfx('click'); setMode(null); }
   else if (e.target.closest('[data-a="change"]')) { AUDIO.sfx('click'); openPanel('crops'); }
 });
@@ -199,7 +207,7 @@ function openPanel(type, id, tab) {
   hidePop();
   UI.panel = { type, id, tab: tab || (PANELS[type].tabs ? PANELS[type].tabs[0][0] : null) };
   R.sel = type === 'plot' ? { kind: 'plot', id } : (type === 'proc' || type === 'creator' || type === 'bldg' || type === 'greenhouse' || type === 'dock' || type === 'orders' || type === 'compost') ? { kind: 'b', id } : type === 'meeple' ? { kind: 'm', id } : null;
-  UI.sig = ''; UI.pkey = null; $('panel').classList.remove('hidden');
+  UI.sig = ''; UI.pkey = null; $('panel').classList.remove('hidden'); freshAt = performance.now();
   document.body.classList.add('panel-open');
   AUDIO.sfx('open');
   renderPanel(true);
@@ -691,6 +699,7 @@ PANELS.goals = {
 
 // panel actions
 $('panel').addEventListener('click', e => {
+  if (strayClick()) return;
   const el = e.target.closest('[data-a]'); if (!el || !UI.panel) return;
   if (el.classList.contains('dis')) { AUDIO.sfx('error'); return; }
   const a = el.dataset.a, v = el.dataset.v, P = UI.panel;
@@ -881,7 +890,7 @@ function setupInput() {
     const p = PTR.get(e.pointerId); if (!p) return;
     PTR.delete(e.pointerId);
     if (PTR.size < 2) pinch = null;
-    if (PTR.size === 0 && !dragMoved && downAt && performance.now() - downAt.t < 600 && UI.inGame && !UI.paused) onWorldTap(e.clientX, e.clientY);
+    if (PTR.size === 0 && !dragMoved && downAt && performance.now() - downAt.t < 600 && UI.inGame && !UI.paused) { worldTapAt = performance.now(); onWorldTap(e.clientX, e.clientY); }
     if (PTR.size === 0) { downAt = null; paintDrag = false; }
   };
   cv.addEventListener('pointerup', up);
