@@ -1,10 +1,10 @@
 # Meeple Meadows
 
-**[⬇ Download the latest APK](https://github.com/OctopusHaberdashery/meeple-meadows/releases/latest/download/MeepleMeadows.apk)** · [All releases](https://github.com/OctopusHaberdashery/meeple-meadows/releases)
+**[▶ Play in your browser](https://octopushaberdashery.github.io/meeple-meadows/)** (installs to an iPad or iPhone home screen) · **[⬇ Android APK](https://github.com/OctopusHaberdashery/meeple-meadows/releases/latest/download/MeepleMeadows.apk)** · [All releases](https://github.com/OctopusHaberdashery/meeple-meadows/releases)
 
 <img src="icon-512.png" width="128" alt="Meeple Meadows icon">
 
-A cozy idle homestead game for Android tablets. Meeples farm, water, haul and craft while you
+A cozy idle homestead game for tablets: Android, and iPad through the web app. Meeples farm, water, haul and craft while you
 clear the overgrown meadow, unlock 32 crops, and chain ingredients through 14 crafting
 buildings into breads, jams, kimchi, teas, oils, quilts, beer, wine and spirits on the way to the
 Grand Harvest Fair.
@@ -42,6 +42,17 @@ Grand Harvest Fair.
 3. If Android asks, allow your Files app to "Install unknown apps", then tap **Install**.
 4. Meeple Meadows appears on your home screen and in the app drawer.
 
+## Install on an iPad or iPhone
+
+1. Open **https://octopushaberdashery.github.io/meeple-meadows/** in Safari.
+2. Tap **Share**, then **Add to Home Screen**.
+3. Open Meeple Meadows from the home screen. It runs full screen and works without a connection.
+
+Saves stay on the device you play on. When a new version is published, opening the game while online picks it
+up. On an iPad the game starts at High quality for a sharp picture, and steps down to Medium by itself, once, if
+the tablet can't keep that smooth; Settings changes it either way. With **Keep screen on** set, the web app asks
+the browser to hold the screen awake while the game is in front.
+
 The game only progresses while it is open on screen. There is no offline progress.
 Saves are written to the app's private storage (3 slots, autosave every minute by default,
 plus on pause and level-up).
@@ -57,6 +68,7 @@ plus on pause and level-up).
   - `js/render.js`, `js/ui.js`, `js/ui2.js`, `js/ui3.js`, `js/audio.js`, `js/main.js`
   - `dev/`: test helpers (autoplay bot, screenshots). Not included in the APK.
 - `android/`: WebView wrapper (`MainActivity.java`), manifest, icons, `build.sh`
+- `pwa/`: the installable web app: manifest, icons, service worker, `build.py` and `publish.sh`
 
 ## Rebuild the APK
 
@@ -65,6 +77,9 @@ Requires the toolchain in `C:\Users\mcnee\android-build` (JDK 17, Android build-
 ```bash
 bash android/build.sh
 ```
+
+The web app is the same single page plus a manifest and a service worker. `bash pwa/publish.sh` builds it and
+replaces the `gh-pages` branch, which GitHub Pages serves.
 
 Bump the version when installing over an older copy, e.g. `VERSION_CODE=3 VERSION_NAME=1.2 bash android/build.sh`. Keep
 `android/meeple-meadows.keystore`: updates must be signed with the same key.
