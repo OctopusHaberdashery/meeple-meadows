@@ -49,7 +49,9 @@ function frame(now) {
   let dt = Math.min(0.25, (now - lastFrame) / 1000);
   lastFrame = now;
   if (!S) return;
-  const simulate = !(UI.inGame && UI.paused);
+  // the world holds its breath for a moment before a level-up fanfare
+  if (UI.hush > 0) UI.hush -= dt;
+  const simulate = !(UI.inGame && UI.paused) && !(UI.inGame && UI.hush > 0);
   if (simulate) {
     acc += dt * (UI.inGame ? DEV_SPEED : 1);
     let steps = 0;

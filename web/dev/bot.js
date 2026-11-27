@@ -46,6 +46,7 @@ window.BOT = (function () {
     return best;
   }
   function think() {
+    if (S.quest && S.quest.q && questDone(S.quest.q)) claimQuest();
     const nd = needs(), dem = cropDemand(nd), goods = goodsChain(nd);
     // plots
     const plots = Object.keys(S.plots).map(Number).filter(i => !S.plots[i].gh);
@@ -77,15 +78,15 @@ window.BOT = (function () {
       const already = procs.some(b => b.recipe === r.id && b.phase !== 'idle');
       if (already) continue;
       let free = procs.find(b => !b.recipe || b.phase === 'idle' || !goods[RECIPE[b.recipe].out[0]]);
-      if (!free && bUnlocked(r.at) && (!BUILDINGS[r.at].max || procs.length < BUILDINGS[r.at].max) && S.coins >= bCost(r.at)) {
+      if (!free && bUnlocked(r.at) && (!BUILDINGS[r.at].max || procs.length < BUILDINGS[r.at].max) && S.coins >= bCost(r.at) && !S.buildings.some(b => b.of === r.at)) {
         let sp = findSpot(r.at);
         for (let k = 0; !sp && k < 12; k++) { const cl = cheapestClear(); if (!cl || cl[1] > S.coins * 0.2) break; doClear(cl[0]); sp = findSpot(r.at); }
-        if (sp && place(r.at, sp[0], sp[1])) free = S.buildings[S.buildings.length - 1];
+        if (sp) place(r.at, sp[0], sp[1]);   // the Meeples have to build it before it can take a recipe
       }
       if (free) setRecipe(free, r.id);
     }
     // creator
-    if (!S.buildings.some(b => b.type === 'creator')) { if (S.coins >= bCost('creator')) { const sp = findSpot('creator'); if (sp) place('creator', sp[0], sp[1]); } }
+    if (!S.buildings.some(b => b.type === 'creator' || b.of === 'creator')) { if (S.coins >= bCost('creator')) { const sp = findSpot('creator'); if (sp) place('creator', sp[0], sp[1]); } }
     // more processors of crowded types
     for (const t of ['crock', 'barrel']) {
       if (!bUnlocked(t)) continue;
@@ -104,7 +105,7 @@ window.BOT = (function () {
     // plots / clearing
     for (let k = 0; k < 6; k++) {
       const pc = bCost('plot');
-      if (pc < S.coins * 0.25) {
+      if (pc < S.coins * 0.25 && Object.keys(S.plots).length < S.meeples.length * 7 + 6) {   // a sensible player doesn't plant far more than the team can pick
         const sp = findSpot('plot');
         if (sp) { place('plot', sp[0], sp[1]); continue; }
         const cl = cheapestClear(); if (cl && cl[1] < S.coins * 0.3) doClear(cl[0]); else break;
@@ -123,7 +124,7 @@ window.BOT = (function () {
     for (const g in goods) { keep[g] = 1e9; const r = RBY[g]; for (const k in r.in) keep[k] = 1e9; }
     for (const id in S.inv) if (!keep[id] && S.inv[id] > 0) sell(id, S.inv[id]);
     // sell excess crops that are needed but heavily stocked
-    for (const id in S.inv) if (keep[id] && S.inv[id] > 400) sell(id, S.inv[id] - 400);
+    for (const id in S.inv) { const cap = Math.max(400, CROP[id] && !CROP[id].flower ? meepleCost(id) * 1.2 : 0); if (keep[id] && S.inv[id] > cap) sell(id, S.inv[id] - cap); }
   }
   function run(hours, dt = 0.25) {
     const end = S.playTime + hours * 3600, marks = [];

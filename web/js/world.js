@@ -157,15 +157,17 @@ const upg = id => S.upg[id] || 0;
 const mSpeed = m => m.speed * (1 + 0.1 * upg('boots') + JB.walk);
 const mCarry = m => m.carry + upg('basket');
 const mWork = m => m.work * (1 + 0.15 * upg('hands'));
-const growMult = p => (1 + 0.12 * upg('soil') + JB.grow) * legacyMult() * p.bonus * (p.gh ? 1.5 * 1.6 : (p.wet ? 1.6 : 1));
+const growMult = p => (1 + 0.12 * upg('soil') + JB.grow + MASTERY_GROW * masteryStars(p.crop)) * legacyMult() * p.bonus * (p.gh ? 1.5 * 1.6 : (p.wet ? 1.6 : 1));
 const canCap = m => 4 + 3 * upg('cans') + Math.floor(m.carry / 2);
 const hasWell = () => S.buildings.some(b => b.type === 'well');
 const craftMult = () => 1 + 0.12 * upg('copper') + JB.craft;
-const sellPrice = id => Math.max(1, Math.round(ITEM[id].price * (1 + 0.1 * upg('haggle') + JB.sell) * legacyMult()));
+const sellPrice = id => Math.max(1, Math.round(ITEM[id].price * (1 + 0.1 * upg('haggle') + JB.sell + MASTERY_SELL * masteryStars(id)) * legacyMult()));
 const cropUnlocked = id => CROP[id] && CROP[id].flower ? S.level >= CROP[id].lvl : LEVELS.findIndex(l => l.crop === id) <= S.level;
 const bUnlocked = t => BUILDINGS[t].lvl <= S.level;
 const recipeUnlocked = r => r.lvl <= S.level;
-function bCount(type) { return S.buildings.filter(b => b.type === type).length; }
+// bCount includes ones still being built (b.of); bReady counts only finished, working buildings
+function bCount(type) { return S.buildings.filter(b => b.type === type || b.of === type).length; }
+function bReady(type) { return S.buildings.filter(b => b.type === type).length; }
 function bCost(type) {
   const d = BUILDINGS[type];
   if (type === 'plot') { let n = 0; for (const k in S.plots) if (!S.plots[k].gh) n++; return Math.round(d.cost * Math.pow(d.grow, Math.max(0, n - 9))); }
@@ -223,7 +225,7 @@ function doClear(i) {
   return true;
 }
 function tileFree(i, allowPath) {
-  return S.cover[i] === COVER.NONE && !OCC[i] && (S.floor[i] === FLOOR.GRASS || (allowPath && S.floor[i] === FLOOR.PATH));
+  return S.cover[i] === COVER.NONE && !OCC[i] && !(GHMAP && GHMAP[i]) && (S.floor[i] === FLOOR.GRASS || (allowPath && S.floor[i] === FLOOR.PATH));
 }
 function canPlace(type, x, y, moving) {
   const d = BUILDINGS[type];
@@ -253,7 +255,7 @@ function wouldBlock(type, x, y, moving) {
   const seen = new Uint8Array(MW * MH);
   const fakeB = { id: -1, type, x, y };
   const needsAccess = t => t === 'storehouse' || t === 'well' || t === 'dock' || t === 'market' || t === 'creator' || BUILDINGS[t].proc;
-  const all = S.buildings.filter(b => (!moving || b.id !== moving.id) && needsAccess(b.type));
+  const all = S.buildings.filter(b => (!moving || b.id !== moving.id) && needsAccess(b.of || b.type));
   if (needsAccess(type)) all.push(fakeB);
   const accessOf = b => accessTiles(b).filter(walk);
   if (!all.length) return false;
@@ -298,13 +300,8 @@ function place(type, x, y) {
   else if (type === 'path') { S.floor[i] = FLOOR.PATH; }
   else {
     for (let yy = 0; yy < d.h; yy++) for (let xx = 0; xx < d.w; xx++) S.floor[idx(x + xx, y + yy)] = FLOOR.GRASS;
-    const b = addBuilding(type, x, y);
-    if (type === 'greenhouse') {
-      for (let yy = 0; yy < d.h; yy++) for (let xx = 0; xx < d.w; xx++) {
-        const t = idx(x + xx, y + yy);
-        if (yy < d.h - 1) makePlot(t, lastPlotCrop(), false, b.id); else S.floor[t] = FLOOR.PATH;
-      }
-    }
+    // new buildings start as a site that the Meeples build up piece by piece (see world4.js)
+    startSite(type, x, y, cost);
     rebuildOcc();
     if (window.R && R.ready) for (let yy = 0; yy < d.h; yy++) for (let xx = 0; xx < d.w; xx++) R.groundDirty(idx(x + xx, y + yy));
   }
@@ -326,8 +323,9 @@ function moveBuilding(b, x, y) {
   return true;
 }
 function demolish(b) {
+  if (b.of) return cancelSite(b);
   if (b.type === 'market' || b.type === 'creator') return false;
-  if (b.type === 'storehouse' && bCount('storehouse') <= 1) return false;
+  if (b.type === 'storehouse' && bReady('storehouse') <= 1) return false;
   if (b.recipe) cancelRecipe(b);
   if (b.type === 'greenhouse') {
     const d = BUILDINGS[b.type];
@@ -469,10 +467,31 @@ function needOf(b) {
   for (const k in r.in) { const n = r.in[k] - (b.got[k] || 0) - (b.transit[k] || 0); if (n > 0) need[k] = n; }
   return need;
 }
+// carry an ingredient from storage to a crafting building that is waiting for it
+function trySupply(m) {
+  const cap = mCarry(m);
+  for (const b of S.buildings) {
+    if (!BUILDINGS[b.type].proc || b.phase !== 'gather') continue;
+    const need = needOf(b);
+    for (const k in need) {
+      const have = S.inv[k] || 0; if (have <= 0) continue;
+      const n = Math.min(need[k], have, cap);
+      if (goTo(m, accessSet(['storehouse']))) {
+        b.transit[k] = (b.transit[k] || 0) + n;
+        m.task = { type: 'supply', b: b.id, item: k, n, step: 'tostore' };
+        return true;
+      }
+      return false;
+    }
+  }
+  return false;
+}
 function pickTask(m) {
   const s = tileOf(m);
   if (m.fish) { fisherTask(m); return; }
   if (m.hand.length) { m.task = { type: 'deliver' }; if (!goTo(m, accessSet(['storehouse']))) { m.task = null; m.wait = 1; } return; }
+  // every free pair of hands helps on a building site first
+  if (SITES_OPEN && pickBuild(m)) return;
   // 1. collect finished goods
   if (m.haul) {
     let best = null, bd = 1e9;
@@ -488,28 +507,15 @@ function pickTask(m) {
   }
   // watering is mixed in with harvesting so busy farms still get watered
   if (m.water !== false && hasWell() && Math.random() < (m.farm ? 0.35 : 1) && waterTask(m, s)) return;
+  // hauling is mixed in with harvesting too, so a big garden can't starve the workshops of ingredients
+  if (m.haul && m.farm && Math.random() < 0.4 && trySupply(m)) return;
   // 2. harvest
   if (m.farm) {
     const r = bfs(s, i => { const p = S.plots[i]; return p && p.st === 2 && !p.claim; });
     if (r) { S.plots[r.goal].claim = m.id; m.task = { type: 'harvest', plot: r.goal }; m.path = r.path; return; }
   }
   // 3. supply processors
-  if (m.haul) {
-    const cap = mCarry(m);
-    for (const b of S.buildings) {
-      if (!BUILDINGS[b.type].proc || b.phase !== 'gather') continue;
-      const need = needOf(b);
-      for (const k in need) {
-        const have = S.inv[k] || 0; if (have <= 0) continue;
-        const n = Math.min(need[k], have, cap);
-        if (goTo(m, accessSet(['storehouse']))) {
-          b.transit[k] = (b.transit[k] || 0) + n;
-          m.task = { type: 'supply', b: b.id, item: k, n, step: 'tostore' };
-          return;
-        }
-      }
-    }
-  }
+  if (m.haul && trySupply(m)) return;
   // 4. plant
   if (m.farm) {
     const r = bfs(s, i => { const p = S.plots[i]; return p && p.st === 0 && !p.claim && plotInSeason(p); });
@@ -517,7 +523,8 @@ function pickTask(m) {
   }
   // 5. water
   if (m.water !== false && hasWell() && waterTask(m, s)) return;
-  // idle wander
+  // nothing to do: sit on a bench or gather by a lantern, or just wander
+  if (idleMoment(m, s)) return;
   m.wait = 1.2 + Math.random() * 1.5;
   if (Math.random() < 0.5) {
     const r = bfs(s, i => i !== s && hash2(i, (S.playTime * 10) | 0, 7) < 0.04, 4);
@@ -577,6 +584,7 @@ function waterTask(m, s) {
 function arrive(m, dt) {
   const t = m.task;
   switch (t.type) {
+    case 'construct': case 'rest': arrive4(m, t, dt); return;
     case 'wander': m.task = null; break;
     case 'deliver': {
       for (const it of m.hand) invAdd(it, 1);
@@ -593,7 +601,8 @@ function arrive(m, dt) {
         let n = 1; if (Math.random() < 0.08 * upg('yield')) n = 2;
         if (p.fert > 0) { if (Math.random() < FERT_DOUBLE) n++; p.fert--; }
         for (let k = 0; k < n; k++) m.hand.push(p.crop);
-        emit({ t: 'harvest', i: t.plot, crop: p.crop, n });
+        emit({ t: 'harvest', i: t.plot, crop: p.crop, n, m: m.id });
+        mRec(m, 'h', n, p.crop);
         if (n > 1) emote(m, 'wow', 0.5);
         p.gen = (p.gen | 0) + 1; p.t = 0; p.wet = Math.max(0, (p.wet | 0) - 1);
         if (CROP[p.crop].harvests && p.gen >= CROP[p.crop].harvests) { p.st = 0; p.gen = 0; addCompost(1); emit({ t: 'spent', i: t.plot }); }
@@ -619,6 +628,7 @@ function arrive(m, dt) {
       if (t.t < t.bite) return;
       const f = rollFish(), sz = recordCatch(f);
       m.hand.push(f); emit({ t: 'catch', m, fish: f, b: b.id, cm: sz.cm, rec: sz.rec });
+      mRec(m, 'f', 1);
       if (FISHMAP[f].rar !== 'common') emote(m, 'wow', FISHMAP[f].rar === 'uncommon' ? 0.3 : 1);
       addFishXP(FISHMAP[f].xp);
       t.t = 0; t.bite = biteTime();
@@ -701,6 +711,7 @@ function updateMeeple(m, dt) {
     if (Math.abs(dx) > 0.5) m.face = dx > 0 ? 1 : -1;
     if (d <= sp) { m.x = tx; m.y = ty; m.path.shift(); }
     else { m.x += dx / d * sp; m.y += dy / d * sp; }
+    m.walked = (m.walked || 0) + Math.min(d, sp);
     m.moving = true;
     return;
   }

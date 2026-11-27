@@ -335,6 +335,7 @@ const ghOpen = b => !!R.sel && ((R.sel.kind === 'b' && R.sel.id === b.id) || (R.
 R.draw = function (dt) {
   const ctx = R.ctx, cam = R.cam, z = cam.z, pr = R.pr;
   R.time += dt;
+  FX.cam(dt);
   const t = R.time;
   if (R.season !== seasonIdx()) { R.season = seasonIdx(); R.restyleAll(); }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -386,6 +387,7 @@ R.draw = function (dt) {
     if (!sr.L) ctx.fillRect(sr.x, sr.y, 3, sr.y1 - sr.y);
   }
   ctx.globalAlpha = 1;
+  FX.ground(ctx, t, dt, tx0, ty0, tx1, ty1, z);
 
   if (R.clearMode) drawClearHints(ctx, tx0, ty0, tx1, ty1);
   if (R.paintCrop) drawPaintHints(ctx, x0, y0, x1, y1);
@@ -410,7 +412,9 @@ R.draw = function (dt) {
   for (const m of S.meeples) if (m.x > x0 - T && m.x < x1 + T && m.y > y0 - T && m.y < y1 + T * 2) list.push({ y: m.y + 6, k: 3, m });
   for (const p of PESTS) if (p.x > x0 - T && p.x < x1 + T && p.y > y0 - T && p.y < y1 + T * 2) list.push({ y: p.y + 4, k: 4, p });
   for (const b of S.buildings) { const g = GUARD[b.id]; if (g && g.st !== 'home' && HUNTERS[b.type].kind !== 'owl') list.push({ y: g.y + 4, k: 5, b, g }); }
+  FX.collect(list, x0, y0, x1, y1);
   list.sort((a, b) => a.y - b.y);
+  FX.shadows(ctx, list);
 
   const wind = Math.sin(t * 0.6) * 0.5 + Math.sin(t * 1.7) * 0.2;
   const sway = R.q.sway && z > 0.7;
@@ -420,7 +424,8 @@ R.draw = function (dt) {
     else if (o.k === 2) drawBuilding(ctx, o.b, t, dt);
     else if (o.k === 3) drawMeeple(ctx, o.m, t);
     else if (o.k === 4) drawPest(ctx, o.p, t);
-    else drawHunter(ctx, o.b, o.g, t);
+    else if (o.k === 5) drawHunter(ctx, o.b, o.g, t);
+    else o.f(ctx, t, dt);
   }
 
   drawFishingLines(ctx);
@@ -428,6 +433,7 @@ R.draw = function (dt) {
   drawBees(ctx, t, x0, y0, x1, y1);
   drawParticles(ctx, dt);
   drawAmbient(ctx, dt, x0, y0, x1, y1);
+  FX.air(ctx, t, dt, x0, y0, x1, y1);
   for (const b of S.buildings) if (BUILDINGS[b.type].proc || b.type === 'creator') drawStatus(ctx, b, t);
   if (R.ghost) drawGhost(ctx);
 
@@ -437,7 +443,7 @@ R.draw = function (dt) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   const raining = S.weather && S.weather.rain > 0;
   if (raining) { ctx.fillStyle = 'rgba(40,60,90,0.16)'; ctx.fillRect(0, 0, R.cv.width, R.cv.height); }
-  if (sun.dusk > 0.02) { ctx.fillStyle = `rgba(255,140,70,${0.13 * sun.dusk})`; ctx.fillRect(0, 0, R.cv.width, R.cv.height); }
+  if (sun.dusk > 0.02) { ctx.fillStyle = `rgba(255,140,70,${0.13 * sun.dusk})`; ctx.fillRect(0, 0, R.cv.width, R.cv.height); FX.duskGlow(ctx, sun); }
   if (sun.night > 0.01) {
     ctx.globalCompositeOperation = 'multiply';
     ctx.fillStyle = mix('#ffffff', '#3a4a8f', sun.night * 0.72);
@@ -447,6 +453,7 @@ R.draw = function (dt) {
   }
   drawWeather(ctx, dt, raining);
   ctx.drawImage(R.vg, 0, 0);
+  FX.screen(ctx, dt);
 };
 
 function selRing(ctx, x, y, rx, ry) {
@@ -502,7 +509,7 @@ function drawCover(ctx, i, t, wind, sway) {
   const p = coverPos(i), s = treeSprite(p.kind, p.v, R.season);
   ell(ctx, p.x + 4, p.y - 2, (p.kind === 'bush' || p.kind === 'rock' ? 20 : 24) * p.big, 8 * p.big, 'rgba(20,40,15,0.28)');
   if (sway && p.kind !== 'rock') {
-    const sw = (wind + Math.sin(t * 1.3 + i * 0.7) * 0.25) * (p.kind === 'bush' ? 0.03 : 0.045);
+    const sw = (windAt(p.x, p.y, t) + Math.sin(t * 1.3 + i * 0.7) * 0.25) * (p.kind === 'bush' ? 0.03 : 0.045);
     ctx.save(); ctx.translate(p.x, p.y); ctx.transform(1, 0, sw, 1, 0, 0); drawSprite(ctx, s, 0, 0, p.big); ctx.restore();
   } else drawSprite(ctx, s, p.x, p.y, p.big);
 }
@@ -518,7 +525,7 @@ function drawPlot(ctx, i, t, wind, sway) {
   if (!live) ctx.globalAlpha = 0.55;
   if (p.dmg) ctx.globalAlpha = 0.6;
   if (sway && live && stage >= 2) {
-    const sw = (wind * 0.06 + Math.sin(t * 2 + i) * 0.02);
+    const sw = (windAt(x, y, t) * 0.085 + Math.sin(t * 2 + i) * 0.02);
     ctx.save(); ctx.translate(x, y + 18); ctx.transform(1, 0, sw, 1, 0, 0); drawSprite(ctx, s, 0, -18); ctx.restore();
   } else drawSprite(ctx, s, x, y);
   ctx.globalAlpha = 1;
@@ -921,7 +928,9 @@ function drawAmbient(ctx, dt, x0, y0, x1, y1) {
     const a = A[k]; a.life += dt;
     if (a.life > a.max || (a.k === 'b' && (sun.night > 0.6 || sea === 3)) || (a.k === 'f' && sun.night < 0.3)) { A.splice(k, 1); continue; }
     a.a += (Math.random() - 0.5) * dt * 4;
-    const sp = a.k === 'b' ? 26 : 10;
+    // butterflies scatter when a Meeple runs past
+    if (a.k === 'b') { for (const m of S.meeples) if (m.moving && Math.abs(m.x - a.x) < 30 && Math.abs(m.y - 14 - a.y) < 30) { a.a = Math.atan2(a.y - (m.y - 14), a.x - m.x); a.flee = 0.7; break; } if (a.flee > 0) a.flee -= dt; }
+    const sp = a.k === 'b' ? (a.flee > 0 ? 90 : 26) : 10;
     a.x += Math.cos(a.a) * sp * dt; a.y += Math.sin(a.a) * sp * dt;
     const fade = Math.min(1, a.life, a.max - a.life);
     if (a.k === 'b') {

@@ -565,6 +565,7 @@ const HATS = [
   { id: 'wreath', name: 'Holly Wreath',  how: 'Win a Blue Ribbon' },
   { id: 'nightcap', name: 'Nightcap',    how: 'Play for 24 hours' },
 ];
+HATS.push({ id: 'laurel', name: 'Laurel Wreath', how: 'A Meeple harvests 1,000 crops' });
 const FIND_HATS = ['flower', 'mushroom', 'leaf'];
 // every Meeple gets a way of getting about, picked at random when they're made
 const GAITS = [

@@ -23,6 +23,7 @@ function updateAlerts() {
   if (stuck) items.push(`<button class="pill alert bad" data-a="stuck">${iconImg('alert')}<span>${stuck} stuck</span></button>`);
   let found = 0; for (const k in S.found) found += S.found[k] || 0;
   if (found) items.push(`<button class="pill alert" data-a="found">${iconImg('star')}<span>${found} to place</span></button>`);
+  if (visitorBusy()) items.push(`<button class="pill alert good" data-a="visitor"><span style="font-size:1.2rem;padding-left:.3rem">🎁</span><span>Visitor</span></button>`);
   const h = items.join('');
   if (el.dataset.h !== h) { el.innerHTML = h; el.dataset.h = h; }
 }
@@ -32,11 +33,12 @@ $('hAlerts') && ($('hAlerts').onclick = e => {
   const a = el.dataset.a;
   if (a === 'orders') { const b = S.buildings.find(x => x.type === 'noticeboard'); if (b) openPanel('orders', b.id); }
   else if (a === 'found') openPanel('build', null, 'decor');
+  else if (a === 'visitor') { if (FX.vpos) FX.focus(FX.vpos.x, FX.vpos.y); openVisitor(); }
   else if (a === 'stuck') {
     // each tap jumps to the next stuck building
     const list = stuckList(); if (!list.length) return;
     const b = list[_stuckIdx++ % list.length], d = BUILDINGS[b.type];
-    R.cam.x = (b.x + d.w / 2) * T; R.cam.y = (b.y + d.h / 2) * T; R.clampCam();
+    FX.focus((b.x + d.w / 2) * T, (b.y + d.h / 2) * T);
     openPanel('proc', b.id);
   }
 });
@@ -63,7 +65,7 @@ function missingHtml(b) {
     return `<div class="row" style="margin-top:.35rem">${iconImg(k)}<div class="grow"><b>${ITEM[k].name}</b><div class="s">${s.text}</div></div>${s.btn ? `<button class="btn sm gold" data-a="source" data-v="${k}">${s.btn}</button>` : ''}</div>`;
   }).join('') + '</div>';
 }
-function focusB(b) { const d = BUILDINGS[b.type]; R.cam.x = (b.x + d.w / 2) * T; R.cam.y = (b.y + d.h / 2) * T; R.clampCam(); }
+function focusB(b) { const d = BUILDINGS[b.type]; FX.focus((b.x + d.w / 2) * T, (b.y + d.h / 2) * T); }
 function findSource(k) {
   if (CROP[k]) { setMode('paint', k); toast('Tap or drag across plots to plant ' + CROP[k].name, false, k); return; }
   if (FISHMAP[k]) {
@@ -173,7 +175,7 @@ PANELS.journal = {
   tabs: JTABS,
   head: () => `${iconImg('journal', 'lg')}<h2>Journal<small>Your collection, records and farm stats</small></h2>`,
   sig: p => p.tab === 'stats' ? S.hist.length + ':' + Object.keys(S.soldBy).length
-    : p.tab === 'hats' ? S.hats.join() : jCount(p.tab) + ':' + S.journal.length + ':' + (p.tab === 'fish' ? JSON.stringify(S.fishRec) : ''),
+    : p.tab === 'hats' ? S.hats.join() : jCount(p.tab) + ':' + S.journal.length + ':' + (p.tab === 'fish' ? JSON.stringify(S.fishRec) : p.tab === 'crops' ? Object.values(S.mast || {}).join('') : ''),
   body: p => {
     if (p.tab === 'stats') return statsHtml();
     if (p.tab === 'hats') return `<p class="s">Hats are just for fun. Pick one for a Meeple from their own panel.</p><div class="grid">` + HATS.map(h => {
@@ -184,11 +186,12 @@ PANELS.journal = {
     if (p.tab === 'relics') h += RELICS.map(r => S.relics[r.id] ? `<div class="cell">${iconImg('relic_' + r.id)}${r.name}<div class="s">${r.desc}</div></div>` : `<div class="cell locked"><div style="font-size:1.5rem;height:2.3rem">❔</div>???<div class="s">Still buried somewhere</div></div>`).join('');
     else h += JPAGES[p.tab]().map(id => {
       if (!jHave(p.tab, id)) return `<div class="cell locked"><div style="font-size:1.5rem;height:2.3rem">❔</div>???</div>`;
-      const sub = p.tab === 'fish' ? (S.fishRec[id] ? 'Biggest: ' + S.fishRec[id] + ' cm' : fmt(S.lifetime[id]) + ' caught') : fmt(S.lifetime[id]) + (p.tab === 'crops' ? ' grown' : ' made');
+      const sub = p.tab === 'fish' ? (S.fishRec[id] ? 'Biggest: ' + S.fishRec[id] + ' cm' : fmt(S.lifetime[id]) + ' caught') : fmt(S.lifetime[id]) + (p.tab === 'crops' ? ' grown<br>' + masteryStarsHtml(id) : ' made');
       return `<div class="cell">${iconImg(id)}${ITEM[id].name}<div class="s">${sub}</div></div>`;
     }).join('');
     h += '</div>';
     if (p.tab === 'relics') h += `<p class="s">Relics turn up now and then when you clear brambles, trees and boulders.</p>`;
+    if (p.tab === 'crops') h += `<p class="s"><b>Mastery:</b> bank 100, 1,000 and 10,000 of a crop to earn a bronze, silver and gold star. Each star makes that crop grow ${Math.round(MASTERY_GROW * 100)}% faster and sell for ${Math.round(MASTERY_SELL * 100)}% more. Gold crops glow in the field.</p>`;
     if (p.tab === 'fish') h += `<p class="s">Every catch has a size. Your biggest of each kind is kept here.</p>`;
     return h;
   },

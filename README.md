@@ -25,7 +25,18 @@ Grand Harvest Fair.
   marigold, borage or poppies near a hive for faster honey and bigger batches. Hives also make beeswax for the Chandlery.
 - Trees: buy seedlings at Market → Seeds (or find them clearing the woods) and plant oak, birch, pine, willow and maple
   trees that give acorns, birch sap, resin, withies and maple sap for syrups, birch beer, acorn bread, baskets and candles.
-- Meeples have their crop for a head, a walking style of their own (moonwalk, slide, waddle, skip, float...) and 30 hats.
+- Meeples have their crop for a head, a walking style of their own (moonwalk, slide, waddle, skip, float...) and 31 hats.
+- Buildings are built by the Meeples themselves: every free Meeple hammers away at the site and the building rises
+  from the ground pixel by pixel, with scaffolding, a hoist and a progress sign. More Meeples build faster.
+- Pip's requests: a run of small jobs with rewards that teaches the first hour, then endless little wishes.
+- Each Meeple keeps its own record (harvests, distance walked, favourite crop) and earns badges. Idle Meeples sit on
+  benches and gather by lanterns at night.
+- A travelling visitor stops by the Market once per real day with a gift and one special request. Nothing is lost by missing a day.
+- Crop mastery: bank 100 / 1,000 / 10,000 of a crop for bronze, silver and gold stars (faster growth, better price).
+- Feel: coins fly to the purse, plants and buildings squash and stretch, level-ups hush the world and sweep in a banner
+  with confetti, farm sounds are tuned to the music (which gains instruments as the farm grows), wind crosses the crops
+  in waves, grass parts around running Meeples, birds perch on scarecrows, long shadows at sunset, and almost
+  anything you tap answers back.
 - Fishing (optional): build a Fishing Dock beside a pond and give a Meeple the Fish job. Fishing XP
   unlocks rarer fish and raises their odds; tap the dock to play the reel-in mini-game. Fish go to the
   Smokehouse, the Sushi Counter, and several kitchen recipes.
@@ -54,7 +65,9 @@ plus on pause and level-up).
   - `js/world.js`: map generation, Meeple AI, crafting, saving
   - `js/world2.js`: discoveries, compost, orders, journal, hats, stats, Blue Ribbons, legacy
   - `js/world3.js`: pests and their hunters, bee flowers, trees, ducks, walking styles
-  - `js/render.js`, `js/ui.js`, `js/ui2.js`, `js/ui3.js`, `js/audio.js`, `js/main.js`
+  - `js/world4.js`: building sites, Pip's requests, Meeple records and badges, crop mastery, the daily visitor
+  - `js/fx.js`: construction drawing, squash and stretch, shadows, grass, birds, ripples, confetti, camera easing
+  - `js/render.js`, `js/ui.js`, `js/ui2.js`, `js/ui3.js`, `js/ui4.js`, `js/audio.js`, `js/main.js`
   - `dev/`: test helpers (autoplay bot, screenshots). Not included in the APK.
 - `android/`: WebView wrapper (`MainActivity.java`), manifest, icons, `build.sh`
 
@@ -72,7 +85,7 @@ Bump the version when installing over an older copy, e.g. `VERSION_CODE=3 VERSIO
 ## Pacing
 
 An autoplay bot that plays efficiently reached the final Fair after ~58 hours of
-in-game time (v1.6, with pests and an owl and dog; the bot doesn't use orders, animals or compost, which add extra income). A human player will likely take longer. Set `PACE` in `web/js/data.js`
+in-game time (v1.7; the bot doesn't use orders, animals, compost or the daily visitor, which add extra income). A human player will likely take longer. Set `PACE` in `web/js/data.js`
 to stretch or shrink the curve (e.g. `1.5` = 50% more produce per goal).
 
 You can test in a desktop browser by serving `web/` (e.g. `python -m http.server`);

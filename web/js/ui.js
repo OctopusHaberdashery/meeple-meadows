@@ -111,10 +111,10 @@ function buildHud() {
 }
 function updateHud() {
   const L = UI.lastHud;
-  const c = fmt(S.coins);
-  if (L.c !== c) { $('hCoins').innerHTML = iconImg('coin') + '<span class="n">' + c + '</span>'; L.c = c; }
+  const c = fmt(coinShown());
+  if (L.c !== c) { const n = $('hCoins').querySelector('.n'); if (n) n.textContent = c; else $('hCoins').innerHTML = iconImg('coin') + '<span class="n">' + c + '</span>'; L.c = c; }
   const mq = S.meeples.length;
-  if (L.m !== mq) { $('hMeeples').innerHTML = iconImg('meeple') + '<span class="n">' + mq + '</span>'; L.m = mq; }
+  if (L.m !== mq) { $('hMeeples').innerHTML = iconImg('meeple') + '<span class="n">' + mq + '</span>'; if (L.m != null) bump($('hMeeples')); L.m = mq; }
   const nx = S.level + 1, pr = levelProgress(nx), rp = !pr && S.won ? ribbonProgress() : null;
   const gsig = S.level + ':' + (pr ? pr.parts.map(p => p.have).join(',') : rp ? S.ribbons + '/' + rp.parts.map(p => p.have).join(',') : 'x');
   if (L.g !== gsig) {
@@ -194,7 +194,7 @@ const PANELS = {};
 function openPanel(type, id, tab) {
   hidePop();
   UI.panel = { type, id, tab: tab || (PANELS[type].tabs ? PANELS[type].tabs[0][0] : null) };
-  R.sel = type === 'plot' ? { kind: 'plot', id } : (type === 'proc' || type === 'creator' || type === 'bldg' || type === 'greenhouse' || type === 'dock' || type === 'orders' || type === 'compost') ? { kind: 'b', id } : type === 'meeple' ? { kind: 'm', id } : null;
+  R.sel = type === 'plot' ? { kind: 'plot', id } : (type === 'proc' || type === 'creator' || type === 'bldg' || type === 'greenhouse' || type === 'dock' || type === 'orders' || type === 'compost' || type === 'site') ? { kind: 'b', id } : type === 'meeple' ? { kind: 'm', id } : null;
   UI.sig = ''; UI.pkey = null; $('panel').classList.remove('hidden');
   AUDIO.sfx('open');
   renderPanel(true);
@@ -227,7 +227,13 @@ function renderPanel(force) {
 function liveUpdate() {
   const el = $('panel');
   el.querySelectorAll('[data-live]').forEach(n => { const v = liveVal(n.dataset.live); if (n.textContent !== v) n.textContent = v; });
-  el.querySelectorAll('[data-bar]').forEach(n => { n.style.width = (Math.max(0, Math.min(1, liveVal(n.dataset.bar))) * 100).toFixed(1) + '%'; });
+  el.querySelectorAll('[data-bar]').forEach(n => {
+    const v = Math.max(0, Math.min(1, liveVal(n.dataset.bar))), full = v >= 1;
+    n.style.width = (v * 100).toFixed(1) + '%';
+    if (n.dataset.full === undefined) n.dataset.full = full ? '1' : '0';
+    else if (full && n.dataset.full === '0') { n.dataset.full = '1'; n.parentNode.classList.add('full'); }
+    else if (!full && n.dataset.full === '1') { n.dataset.full = '0'; n.parentNode.classList.remove('full'); }
+  });
 }
 function liveVal(k) {
   const [a, b] = k.split(':');
@@ -601,7 +607,7 @@ PANELS.meeples = {
     let h = cr ? `<button class="btn wide green" data-a="opencreator" style="margin-bottom:.6rem">${iconImg('meeple')} Create a Meeple</button>` : `<p class="s">Build a <b>Meeple Creator</b> to make more Meeples.</p>`;
     h += `<p class="s"><b>Farm</b> = plant & harvest. <b>Water</b> = fill cans at a well and water crops. <b>Haul</b> = carry ingredients to and from crafting buildings. <b>🎣 Fish</b> = fish at a dock full-time (overrides the other jobs).</p>`;
     for (const m of S.meeples) {
-      h += `<div class="card"><div class="row"><img src="${meepleURL(m.col, m.crop, m.hat)}" style="width:2.8rem;height:3.1rem"><div class="grow"><div class="t">${esc(m.name)} <span class="s">· ${m.trait} · ${gaitName(m)}</span></div>
+      h += `<div class="card"><div class="row"><img src="${meepleURL(m.col, m.crop, m.hat)}" style="width:2.8rem;height:3.1rem"><div class="grow"><div class="t">${esc(m.name)} <span class="s">· ${m.trait} · ${gaitName(m)}</span> ${badgesOf(m).map(b => b.icon).join('')}</div>
         <div class="s">🏃 ${mSpeed(m).toFixed(1)} · 🧺 ${mCarry(m)} · ✋ ${mWork(m).toFixed(1)}</div><div class="s" data-live="mt:${m.id}"></div></div>
         <div style="display:flex;flex-direction:column;gap:.25rem;align-items:flex-end"><div class="toggle"><button class="${m.farm ? 'on' : ''}" data-a="mfarm" data-v="${m.id}">Farm</button><button class="${m.water !== false ? 'on' : ''}" data-a="mwater" data-v="${m.id}">Water</button><button class="${m.haul ? 'on' : ''}" data-a="mhaul" data-v="${m.id}">Haul</button><button class="${m.fish ? 'on' : ''}" data-a="mfish" data-v="${m.id}">🎣</button></div>
         <button class="btn sm" data-a="mfind" data-v="${m.id}">Find</button></div></div></div>`;
@@ -613,13 +619,14 @@ PANELS.meeples = {
 PANELS.meeple = {
   valid: p => S.meeples.some(m => m.id === p.id),
   head: p => { const m = S.meeples.find(x => x.id === p.id); return `<img src="${meepleURL(m.col, m.crop, m.hat)}" style="width:2.6rem;height:2.9rem"><h2>${esc(m.name)}<small>${m.crop === 'founder' ? 'The founding Meeple' : CROP[m.crop].name + ' Meeple'} · ${m.trait} · ${gaitName(m)}</small></h2>`; },
-  sig: p => { const m = S.meeples.find(x => x.id === p.id); return m.name + m.farm + m.haul + m.water + m.fish + m.hat + S.hats.length + upg('boots') + upg('basket') + upg('hands'); },
+  sig: p => { const m = S.meeples.find(x => x.id === p.id); return m.name + m.farm + m.haul + m.water + m.fish + m.hat + S.hats.length + upg('boots') + upg('basket') + upg('hands') + storySig(m); },
   body: p => {
     const m = S.meeples.find(x => x.id === p.id);
     const sb = (lbl, v, mx) => `<div class="stat"><b>${lbl}</b><div class="statbar"><i style="width:${Math.min(100, v / mx * 100)}%"></i></div><span>${v}</span></div>`;
     return `<div class="card"><div class="row"><img src="${meepleURL(m.col, m.crop, m.hat)}" style="width:4.6rem;height:5.2rem"><div class="grow">
       ${sb('Speed', +mSpeed(m).toFixed(2), 5)}${sb('Carry', mCarry(m), 18)}${sb('Hands', +mWork(m).toFixed(2), 3)}
       <div class="s" style="margin-top:.3rem">Now: <b data-live="mt:${m.id}"></b></div></div></div></div>
+      ${meepleStory(m)}
       <div class="sec">Jobs</div><div class="row"><div class="toggle"><button class="${m.farm ? 'on' : ''}" data-a="mfarm" data-v="${m.id}">Farm</button><button class="${m.water !== false ? 'on' : ''}" data-a="mwater" data-v="${m.id}">Water</button><button class="${m.haul ? 'on' : ''}" data-a="mhaul" data-v="${m.id}">Haul</button><button class="${m.fish ? 'on' : ''}" data-a="mfish" data-v="${m.id}">Fish</button></div>
       <span class="grow"></span><button class="btn sm" data-a="mrename" data-v="${m.id}">Rename</button></div>
       ${hatPicker(m)}
@@ -728,7 +735,7 @@ $('panel').addEventListener('click', e => {
       return;
     }
     case 'mk': if (queueMeeple(v)) { toast('A ' + CROP[v].name + ' Meeple is on the way!', false, v); AUDIO.sfx('buy'); } else toast('Not enough ' + CROP[v].name, true); break;
-    case 'sell': { const [id, n] = v.split(':'); const got = sell(id, n === 'all' ? 1e12 : +n); if (got) { AUDIO.sfx('coin'); } break; }
+    case 'sell': { const [id, n] = v.split(':'); const got = sell(id, n === 'all' ? 1e12 : +n); if (got) coinFly(el, got); break; }
     case 'auto': { const cur = S.auto[v] != null ? S.auto[v] : null, i = AUTO_STEPS.indexOf(cur), nx = AUTO_STEPS[(i + 1) % AUTO_STEPS.length]; if (nx == null) delete S.auto[v]; else S.auto[v] = nx; break; }
     case 'upg': { const u = UPGRADES.find(x => x.id === v); if (buyUpgrade(u)) { toast(u.name + ' upgraded!', false, 'ui_' + u.icon); AUDIO.sfx('buy'); } break; }
     case 'mfish': {
@@ -745,7 +752,7 @@ $('panel').addEventListener('click', e => {
       if (!m.farm && !m.haul && m.water === false) m.farm = true;
       dropTask(m); break;
     }
-    case 'mfind': { const m = S.meeples.find(x => x.id == v); R.cam.x = m.x; R.cam.y = m.y; openPanel('meeple', m.id); return; }
+    case 'mfind': { const m = S.meeples.find(x => x.id == v); FX.focus(m.x, m.y); openPanel('meeple', m.id); return; }
     case 'mrename': renameMeeple(S.meeples.find(x => x.id == v)); return;
     case 'mhat': { const m = S.meeples.find(x => x.id == P.id); m.hat = v === 'none' ? null : v; emote(m, 'heart'); break; }
     default: { const Pd = PANELS[P.type]; if (Pd.act && Pd.act(a, v, P, el) === 'stop') return; }
@@ -786,12 +793,14 @@ function onWorldTap(sx, sy) {
     else if (S.cover[t.i] && S.cover[t.i] !== COVER.WATER) toast('Clear the land next to it first', true);
     return;
   }
+  if (tapFeel(w, t, sx, sy)) return;
   // meeple?
   let best = null, bd = 22;
   for (const m of S.meeples) { const d = Math.hypot(m.x - w.x, m.y - 12 - w.y); if (d < bd) { bd = d; best = m; } }
   if (best) { openPanel('meeple', best.id); return; }
   // greenhouse: first tap lifts the roof, then plots inside can be tapped
   const gh = ghOf(t.i);
+  if (gh && gh.of) { openPanel('site', gh.id); return; }
   if (gh) {
     const open = R.sel && ((R.sel.kind === 'b' && R.sel.id === gh.id) || (R.sel.kind === 'plot' && S.plots[R.sel.id] && S.plots[R.sel.id].gh === gh.id));
     if (open && S.plots[t.i]) openPanel('plot', t.i); else openPanel('greenhouse', gh.id);
@@ -802,7 +811,8 @@ function onWorldTap(sx, sy) {
   if (!bid) { const above = tileAt(w.x, w.y + T); if (above && OCC[above.i] && BUILDINGS[BMAP[OCC[above.i]].type].w > 1) bid = OCC[above.i]; }
   if (bid) {
     const b = BMAP[bid];
-    if (b.type === 'creator') openPanel('creator', b.id);
+    if (b.of) openPanel('site', b.id);
+    else if (b.type === 'creator') openPanel('creator', b.id);
     else if (b.type === 'dock') openPanel('dock', b.id);
     else if (b.type === 'noticeboard') openPanel('orders', b.id);
     else if (b.type === 'compost') openPanel('compost', b.id);
@@ -838,7 +848,7 @@ let pinch = null, dragMoved = false, downAt = null, paintDrag = false;
 function setupInput() {
   const cv = R.cv;
   cv.addEventListener('pointerdown', e => {
-    AUDIO.unlock();
+    AUDIO.unlock(); FX.cancelCam();
     try { cv.setPointerCapture(e.pointerId); } catch (err) { }
     PTR.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
     if (PTR.size === 1) {
@@ -858,7 +868,7 @@ function setupInput() {
     if (PTR.size === 1) {
       if (paintDrag) { const w = R.screenToWorld(p.x, p.y), t = tileAt(w.x, w.y); if (t) paintPlot(t.i); return; }
       if (Math.hypot(p.x - p.sx, p.y - p.sy) > 9) dragMoved = true;
-      if (dragMoved) { R.cam.x -= dx / R.cam.z; R.cam.y -= dy / R.cam.z; R.clampCam(); hidePop(); }
+      if (dragMoved) { R.cam.x -= dx / R.cam.z; R.cam.y -= dy / R.cam.z; R.clampCam(); hidePop(); FX.drag(-dx / R.cam.z, -dy / R.cam.z); }
     } else if (PTR.size === 2 && pinch) {
       const [a, b] = [...PTR.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
@@ -876,6 +886,7 @@ function setupInput() {
     PTR.delete(e.pointerId);
     if (PTR.size < 2) pinch = null;
     if (PTR.size === 0 && !dragMoved && downAt && performance.now() - downAt.t < 600 && UI.inGame && !UI.paused) onWorldTap(e.clientX, e.clientY);
+    if (PTR.size === 0 && dragMoved && !paintDrag) FX.fling();
     if (PTR.size === 0) { downAt = null; paintDrag = false; }
   };
   cv.addEventListener('pointerup', up);
@@ -897,20 +908,18 @@ function onGameEvent(e) {
     const L = e.level, cr = CROP[e.crop];
     const newB = Object.keys(BUILDINGS).filter(t => BUILDINGS[t].lvl === L);
     const newR = RECIPES.filter(r => r.lvl === L);
-    AUDIO.sfx('level');
-    modal(`<div class="burst">${iconImg(e.crop, 'xl')}</div><h2>Level ${L + 1}!</h2><p class="p">New crop unlocked: <b>${cr.name}</b>.<br>A ${cr.name} Meeple is ${cr.meeple.trait.toLowerCase()} — speed ${cr.meeple.speed}, carries ${cr.meeple.carry}.</p>` +
+    celebrate({ title: 'Level ' + (L + 1) + '!', sub: cr.name + ' unlocked', icon: e.crop, big: true }, () => modal(`<div class="burst">${iconImg(e.crop, 'xl')}</div><h2>Level ${L + 1}!</h2><p class="p">New crop unlocked: <b>${cr.name}</b>.<br>A ${cr.name} Meeple is ${cr.meeple.trait.toLowerCase()} — speed ${cr.meeple.speed}, carries ${cr.meeple.carry}.</p>` +
       (newB.length ? `<div class="sec">New buildings</div><div class="row wrap" style="justify-content:center">${newB.map(t => `<span class="chip"><img class="ico" src="${buildingURL(t)}">${BUILDINGS[t].name}</span>`).join('')}</div>` : '') +
       (newR.length ? `<div class="sec">New recipes</div><div class="row wrap" style="justify-content:center">${newR.map(r => `<span class="chip">${iconImg(r.out[0], 'sm')}${ITEM[r.out[0]].name}</span>`).join('')}</div>` : '') +
-      `<div class="btns"><button class="btn green" data-a="ok">Wonderful!</button></div>`, () => closeModal());
+      `<div class="btns"><button class="btn green" data-a="ok">Wonderful!</button></div>`, () => closeModal()));
     saveGame();
   } else if (e.t === 'fair') {
-    AUDIO.sfx('level');
     unlockHat('crown');
-    modal(`<div class="burst">${iconImg('star', 'xl')}</div><h2>The Grand Harvest Fair!</h2><p class="p">Folk came from every valley to taste your kimchi, jams, beers and spirits. Your little meadow is the talk of the land.<br><br>
+    celebrate({ title: 'The Grand Harvest Fair!', sub: 'Your meadow is the talk of the land', icon: 'star', big: true, fair: true }, () => modal(`<div class="burst">${iconImg('star', 'xl')}</div><h2>The Grand Harvest Fair!</h2><p class="p">Folk came from every valley to taste your kimchi, jams, beers and spirits. Your little meadow is the talk of the land.<br><br>
       Played for <b>${fmtTime(S.playTime)}</b> with <b>${S.meeples.length}</b> Meeples and <b>${fmt(S.stats.earned)}</b> coins earned. Your Meeples get a <b>Golden Crown</b>.</p>
       <div class="sec">What next?</div><div style="text-align:left" class="p"><p>${iconImg('ribbon', 'sm')} <b>Keep farming</b> for endless <b>Blue Ribbon</b> goals, with prizes for every ribbon.</p>
       <p>${iconImg('soil', 'sm')} Or <b>start a new meadow</b> with a <b>Legacy</b>: +10% crop growth and sell prices for each Fair you've won, and your hats come along. This homestead stays saved.</p></div>
-      <div class="btns"><button class="btn green" data-a="ok">Keep farming</button><button class="btn" data-a="legacy">New meadow with Legacy</button></div>`, a => { closeModal(); if (a === 'legacy') openLegacy(); });
+      <div class="btns"><button class="btn green" data-a="ok">Keep farming</button><button class="btn" data-a="legacy">New meadow with Legacy</button></div>`, a => { closeModal(); if (a === 'legacy') openLegacy(); }));
     saveGame();
   } else if (e.t === 'season') {
     const SE = SEASONS[e.sea], cs = CROPS.filter(c => c.sea.includes(e.sea) && cropUnlocked(c.id));
@@ -1015,7 +1024,7 @@ function openSettings(fromPause) {
     <div class="sec">Interface</div>
     ${tg('uiScale', 'UI size', [[0.85, 'Small'], [1, 'Medium'], [1.15, 'Large'], [1.3, 'Huge']])}
     ${tg('costLabels', 'Clear costs', [[true, 'Show'], [false, 'Hide']])}
-    ${tg('hints', 'Tips', [[true, 'On'], [false, 'Off']])}
+    ${tg('hints', "Pip's requests", [[true, 'On'], [false, 'Off']])}
     <div class="sec">System</div>
     ${tg('autosave', 'Autosave', [[30, '30s'], [60, '1 min'], [180, '3 min'], [300, '5 min']])}
     ${tg('keepAwake', 'Keep screen on', [[true, 'On'], [false, 'Off']])}
@@ -1036,6 +1045,9 @@ function openSettings(fromPause) {
 function openHelp(fromPause) {
   modal(`<h2>How to Play</h2><div style="text-align:left" class="p">
     <p>${iconImg('meeple', 'sm')} <b>Meeples</b> do the work: they plant, harvest and haul everything to the <b>storehouse</b> on their own.</p>
+    <p>${iconImg('hammer', 'sm')} New buildings are <b>built by your Meeples</b>, piece by piece. The more free hands, the faster it goes. Tap a site to see how it's coming along.</p>
+    <p>${iconImg('scroll', 'sm')} <b>Pip's requests</b> (bottom left) are small jobs with a reward. A <b>traveller</b> also stops by the market once a day with a gift.</p>
+    <p>${iconImg('star', 'sm')} <b>Mastery</b>: bank 100, 1,000 and 10,000 of a crop for stars that make it grow faster and sell for more.</p>
     <p>${iconImg('soil', 'sm')} Tap <b>Crops</b>, pick a crop, then tap or drag across plots to plant it. Build more plots from <b>Build</b>; touching plots join into one bed.</p>
     <p>${iconImg('orders', 'sm')} An <b>Orders Board</b> brings requests from the neighbours. Fill them from storage before they expire for extra coins and prizes.</p>
     <p>${iconImg('fertilizer', 'sm')} A <b>Compost Bin</b> turns spent plants (and produce you toss in) into <b>fertilizer</b>. Fertilized soil can give a double harvest.</p>
