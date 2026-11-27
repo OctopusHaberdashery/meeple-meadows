@@ -1,0 +1,18 @@
+{
+  "name": "Meeple Meadows",
+  "short_name": "Meadows",
+  "description": "A cozy idle homestead: Meeples farm, haul and craft while you clear the meadow on the way to the Grand Harvest Fair.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#284a2a",
+  "theme_color": "#2f5a2c",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
