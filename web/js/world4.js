@@ -265,7 +265,7 @@ function newWish() {
   if (hasBoard()) opts.push([{ k: 'orders', n: 1, r: W * 2 }, 2]);
   if (S.buildings.some(b => BUILDINGS[b.type].proc && b.recipe)) opts.push([{ k: 'craft', n: 4 + ((Math.random() * 6) | 0), r: Math.round(W * 1.5) }, 3]);
   if (S.meeples.some(m => m.fish) && bReady('dock')) opts.push([{ k: 'fish', n: 3 + ((Math.random() * 4) | 0), r: W }, 1.5]);
-  if (S.meeples.length < MEEPLE_MAX && bReady('creator')) opts.push([{ k: 'made', n: 1, r: Math.round(W * 1.5) }, 1.5]);
+  if (madeCount() < MEEPLE_MAX && bReady('creator')) opts.push([{ k: 'made', n: 1, r: Math.round(W * 1.5) }, 1.5]);
   opts.push([{ k: 'plots', n: farmPlots() + 2, r: Math.max(W, bCost('plot') * 3) }, 1.5]);
   opts.push([{ k: 'sell', n: clampN(P * 2, 10, 200), r: W }, 1]);
   const fresh = opts.filter(o => o[0].k !== S.quest.lastK);

@@ -537,7 +537,7 @@ PANELS.creator = {
   sig: p => { const b = BMAP[p.id]; return S.level + ':' + b.queue.join(',') + ':' + S.meeples.length + ':' + CROPS.map(c => (S.inv[c.id] || 0) >= meepleCost(c.id) ? 1 : 0).join(''); },
   body: p => {
     const b = BMAP[p.id];
-    let h = `<div class="card"><div class="row"><div class="grow"><div class="t">Meeples: ${S.meeples.length} / ${MEEPLE_MAX}</div>`;
+    let h = `<div class="card"><div class="row"><div class="grow"><div class="t">Meeples: ${madeCount()} / ${MEEPLE_MAX}${S.meeples.length > madeCount() ? ' <span class="s">+ ' + (S.meeples.length - madeCount()) + ' raised here</span>' : ''}</div>`;
     if (b.queue.length) h += `<div class="s">Creating a ${CROP[b.queue[0]].name} Meeple…</div><div class="bar big" style="margin-top:.3rem"><i data-bar="cq:${b.id}"></i></div><div style="margin-top:.3rem">${b.queue.map(c => iconImg(c)).join('')}</div>`;
     else h += `<div class="s">Pick a crop below. Meeples take 20 seconds to come to life.</div>`;
     h += `</div></div></div><div class="sec">Recipes for Meeples</div>`;
@@ -549,7 +549,7 @@ PANELS.creator = {
       h += `<div class="card"><div class="row"><img src="${meepleURL(ms.col, c)}" style="width:3.4rem;height:3.8rem"><div class="grow"><div class="t">${cr.name} Meeple <span class="s">· ${ms.trait}</span></div>
         ${sb('Speed', ms.speed, 3.6)}${sb('Carry', ms.carry, 12)}${sb('Hands', ms.work, 1.8)}
         <div class="row" style="margin-top:.25rem"><span class="chip ${have >= cost ? 'ok' : 'bad'}">${iconImg(c, 'sm')}${fmt(have)} / ${cost}</span><span class="grow"></span>
-        <button class="btn sm green ${have < cost || b.queue.length >= 5 || S.meeples.length + b.queue.length >= MEEPLE_MAX ? 'dis' : ''}" data-a="mk" data-v="${c}">Create</button></div></div></div></div>`;
+        <button class="btn sm green ${have < cost || b.queue.length >= 5 || madeCount() + b.queue.length >= MEEPLE_MAX ? 'dis' : ''}" data-a="mk" data-v="${c}">Create</button></div></div></div></div>`;
     }
     h += `<p class="s">Each new Meeple costs a bit more produce than the last.</p>`;
     return h;
@@ -614,7 +614,7 @@ PANELS.storage = {
 };
 // --- meeples list
 PANELS.meeples = {
-  head: () => `${iconImg('meeple', 'lg')}<h2>Meeples<small>${S.meeples.length} of ${MEEPLE_MAX}</small></h2>`,
+  head: () => `${iconImg('meeple', 'lg')}<h2>Meeples<small>${madeCount()} of ${MEEPLE_MAX}${S.meeples.length > madeCount() ? ', and ' + (S.meeples.length - madeCount()) + ' raised here' : ''}</small></h2>`,
   sig: () => S.meeples.map(m => m.id + (m.farm ? 'f' : '') + (m.haul ? 'h' : '') + (m.water !== false ? 'w' : '') + (m.fish ? 'F' : '') + m.name).join(',') + upg('boots') + upg('basket'),
   body: () => {
     const cr = S.buildings.find(b => b.type === 'creator');

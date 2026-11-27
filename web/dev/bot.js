@@ -95,7 +95,9 @@ window.BOT = (function () {
     }
     // meeples
     const cr = S.buildings.find(b => b.type === 'creator');
-    if (cr && S.meeples.length + cr.queue.length < Math.min(MEEPLE_MAX, 3 + plots.length / 3)) {
+    // a home for a couple in love, so they can raise a child
+    if (homeNag() && S.coins > bCost('cottage') * 1.5) { const sp = findSpot('cottage'); if (sp) place('cottage', sp[0], sp[1]); }
+    if (cr && madeCount() + cr.queue.length < Math.min(MEEPLE_MAX, 3 + plots.length / 3)) {
       let best = null, bs = 0;
       for (const c of CROPS) if (cropUnlocked(c.id) && (S.inv[c.id] || 0) >= meepleCost(c.id)) { const sc = c.meeple.speed * c.meeple.carry; if (sc > bs) { bs = sc; best = c.id; } }
       if (best) queueMeeple(best);

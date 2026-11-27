@@ -175,8 +175,11 @@ function bCost(type) {
   return Math.round(d.cost * Math.pow(d.grow, S.built[type] || 0));
 }
 function upgCost(u) { return Math.round(u.base * Math.pow(u.mul, upg(u.id))); }
+// Meeples made at the Creator; children raised in the cottages are counted apart and don't use up its 40 places
+const madeCount = () => S.meeples.filter(m => !m.homeborn).length;
 function meepleCost(crop) {
-  const n = Math.max(0, S.meeples.length - 1);
+  // children raised on the farm don't make the Creator's Meeples any dearer
+  const n = Math.max(0, madeCount() - 1);
   const base = crop === 'founder' ? 8 : CROP[crop].mc;
   return Math.ceil(base * Math.pow(1.24, n));
 }
@@ -387,7 +390,7 @@ function buyUpgrade(u) {
 }
 function queueMeeple(crop) {
   const cr = S.buildings.find(b => b.type === 'creator'); if (!cr) return false;
-  if (S.meeples.length + cr.queue.length >= MEEPLE_MAX) return false;
+  if (madeCount() + cr.queue.length >= MEEPLE_MAX) return false;
   if (cr.queue.length >= 5) return false;
   const c = meepleCost(crop);
   if ((S.inv[crop] || 0) < c) return false;
@@ -568,6 +571,8 @@ function pickTask(m) {
       const d = Math.abs(b.x * T - m.x) + Math.abs(b.y * T - m.y); if (d < bd) { bd = d; best = b; }
     }
     if (best && goTo(m, accessOfB(best))) { best.claim = m.id; m.task = { type: 'collect', b: best.id }; return; }
+    // acorns lying under the oaks
+    if (ACORN_FREE && pickAcorn(m, s)) return;
   }
   // chewed plants, and mice sitting in the beds
   if (m.farm && MEND_ANY) {
@@ -762,6 +767,7 @@ function arrive(m, dt) {
       m.task = null; // leftovers in hand get delivered back
       break;
     }
+    default: arrive6(m, t, dt); return;
   }
 }
 function updateMeeple(m, dt) {
@@ -824,7 +830,10 @@ function update(dt) {
         if (ok) { b.phase = 'work'; b.t = 0; b.got = {}; }
       } else if (b.phase === 'work') {
         b.t += dt * craftMult() * workMult(b);
-        if (b.t >= r.t) { b.phase = 'done'; b.out = r.out[1] + batchDone(b); S.stats.crafted += b.out; emit({ t: 'crafted', b: b.id }); }
+        if (b.t >= r.t) {
+          if (b.type === 'oaktree') shedAcorns(b);        // acorns fall to the ground instead of waiting in a pile (world6.js)
+          else { b.phase = 'done'; b.out = r.out[1] + batchDone(b); S.stats.crafted += b.out; emit({ t: 'crafted', b: b.id }); }
+        }
       }
     }
     if (b.type === 'creator' && b.queue.length) {

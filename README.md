@@ -51,6 +51,17 @@ Grand Harvest Fair.
 - Meeples walk the way people do: straight to where they are going, cutting corners across open ground instead of
   following the grid. Where they walk most, the grass is pressed flat, then marked with footprints, then worn to a
   narrow earth trail. Trails that fall out of use slowly grow over.
+- Plants grow up in front of you: every crop and bee flower has fifteen pictures of its own life, from the seed and the
+  first crook of a shoot through seed leaves, true leaves, buds, open flowers and fruit that sets, swells and colours.
+  Plants in one bed never grow quite in step. Orchard trees start as a staked whip, fill out into a sapling, and once
+  grown show their season in their branches: catkins and acorns on the oak, a filling sap pail, fattening pine cones.
+- Acorns fall: an oak drops its acorns around its foot one by one, and Meeples walk to each one and pick it up.
+  Woodland oaks at the edge of the clearing drop the odd acorn too. You can tap an acorn to pocket it yourself.
+- Love, cottages and children: Meeples with free hearts take a shine to each other, and fondness grows whenever the
+  two are near (see the heart on any Meeple's card). When they fall in love you are asked to build them a Cottage.
+  There they raise a child, who potters about, gathers acorns, sleeps indoors at night and grows up into a Meeple
+  that takes after both parents. Children come on top of the Creator's 40 Meeples: the farm can raise 2 at first and
+  one more every third level, up to 12.
 - Fishing (optional): build a Fishing Dock beside a pond and give a Meeple the Fish job. Fishing XP
   unlocks rarer fish and raises their odds; tap the dock to play the reel-in mini-game. Fish go to the
   Smokehouse, the Sushi Counter, and several kitchen recipes.
@@ -87,14 +98,17 @@ plus on pause and level-up).
 - `web/`: the game itself (HTML5 canvas, plain JavaScript, no dependencies)
   - `js/data.js`: crops, goods, recipes, buildings, levels, upgrades. `PACE` scales every level requirement.
   - `js/art.js` … `js/art5.js`: all art, drawn procedurally at load in a papercraft "sticker" style
+  - `js/art6.js`: growth stages for every crop (`GROW`), orchard saplings, the acorn, the cottage
   - `js/world.js`: map generation, Meeple AI, route finding and straight-line walking, crafting, saving
   - `js/world2.js`: discoveries, compost, orders, journal, hats, stats, Blue Ribbons, legacy
   - `js/world3.js`: pests and their hunters, bee flowers, trees, ducks, walking styles
   - `js/world4.js`: building sites, Pip's requests, Meeple records and badges, crop mastery, the daily visitor
   - `js/world5.js`: landmarks, Wonders, Charm and passers-by, Meeple wishes, surprises, the wear map behind desire paths
+  - `js/world6.js`: acorns on the ground and the gathering job, sweethearts, cottages, children
   - `js/fx.js`: construction drawing, squash and stretch, shadows, grass, birds, ripples, confetti, camera easing
   - `js/fx2.js`: landmark and Wonder art, weather, body language, follow camera, close-up sound, rare moments
-  - `js/render.js`, `js/ui.js`, `js/ui2.js`, `js/ui3.js`, `js/ui4.js`, `js/ui5.js`, `js/audio.js`, `js/main.js`
+  - `js/fx3.js`: growth shivers, orchard trees through the season, falling acorns, children, hearts, the lived-in cottage
+  - `js/render.js`, `js/ui.js`, `js/ui2.js`, `js/ui3.js`, `js/ui4.js`, `js/ui5.js`, `js/ui6.js`, `js/audio.js`, `js/main.js`
   - `dev/`: test helpers (autoplay bot, screenshots). Not included in the APK.
 - `android/`: WebView wrapper (`MainActivity.java`), manifest, icons, `build.sh`
 - `pwa/`: the installable web app: manifest, icons, service worker, `build.py` and `publish.sh`
@@ -115,8 +129,8 @@ Bump the version when installing over an older copy, e.g. `VERSION_CODE=3 VERSIO
 
 ## Pacing
 
-An autoplay bot that plays efficiently reached the final Fair after ~52 hours of
-in-game time (v1.8.1, down from ~58 because straight-line walking shortens every trip; the bot doesn't use orders, animals, compost, the daily visitor, landmarks or Wonders, which add extra income and bonuses). A human player will likely take longer. Set `PACE` in `web/js/data.js`
+An autoplay bot that plays efficiently reached the final Fair after ~48 hours of
+in-game time (v1.9, down from ~52 because the twelve children raised in cottages add hands; the bot builds cottages but doesn't use orders, animals, compost, the daily visitor, landmarks or Wonders, which add extra income and bonuses). A human player will likely take longer. Set `PACE` in `web/js/data.js`
 to stretch or shrink the curve (e.g. `1.5` = 50% more produce per goal).
 
 You can test in a desktop browser by serving `web/` (e.g. `python -m http.server`);

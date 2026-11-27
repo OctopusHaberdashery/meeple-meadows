@@ -520,11 +520,11 @@ function drawPlot(ctx, i, t, wind, sway) {
   if (p.st === 0) { ctx.globalAlpha = live ? 0.75 : 0.35; drawSprite(ctx, ART.icons[p.crop], x - 8, y - 8, 0.5); ctx.globalAlpha = 1; return; }
   const f = p.t / growTarget(p);
   // a living plant regrowing its next harvest stays full-sized rather than restarting as a seedling
-  const stage = p.st >= 2 ? 3 : (p.gen | 0) > 0 ? 2 : (f < 0.15 ? 0 : f < 0.35 ? 1 : 2);
+  const stage = plantFrame(p);   // see art6.js: a picture for every moment from seed to harvest
   const s = plantSprite(p.crop, stage);
   if (!live) ctx.globalAlpha = 0.55;
   if (p.dmg) ctx.globalAlpha = 0.6;
-  if (sway && live && stage >= 2) {
+  if (sway && live && stage >= 4) {
     const sw = (windAt(x, y, t) * 0.085 + Math.sin(t * 2 + i) * 0.02);
     ctx.save(); ctx.translate(x, y + 18); ctx.transform(1, 0, sw, 1, 0, 0); drawSprite(ctx, s, 0, -18); ctx.restore();
   } else drawSprite(ctx, s, x, y);
