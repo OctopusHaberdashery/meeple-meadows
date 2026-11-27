@@ -74,7 +74,7 @@ AUDIO.applyVolume = function () {
   if (!AUDIO.ctx) return;
   const v = AUDIO.vol, t = AUDIO.ctx.currentTime;
   AUDIO.master.gain.value = v.master;
-  AUDIO.music.gain.cancelScheduledValues(t); AUDIO.music.gain.value = v.music * 0.55;
+  AUDIO.music.gain.cancelScheduledValues(t); AUDIO.music.gain.value = v.music * 0.55 * (1 - 0.4 * (AUDIO.zf || 0));
   AUDIO.sfxBus.gain.value = v.sfx;
   AUDIO.amb.gain.value = v.amb * 0.6;
 };
@@ -87,11 +87,18 @@ AUDIO.resume = function () {
 // the music holds its breath for a moment (before a level-up fanfare), then swells back
 AUDIO.duck = function (sec) {
   if (!AUDIO.started) return;
-  const g = AUDIO.music.gain, t = AUDIO.ctx.currentTime, v = AUDIO.vol.music * 0.55;
+  const g = AUDIO.music.gain, t = AUDIO.ctx.currentTime, v = AUDIO.vol.music * 0.55 * (1 - 0.4 * (AUDIO.zf || 0));
+  AUDIO.duckUntil = t + sec + 0.8;
   g.cancelScheduledValues(t); g.setValueAtTime(g.value, t);
   g.linearRampToValueAtTime(v * 0.12, t + 0.08); g.setValueAtTime(v * 0.12, t + sec); g.linearRampToValueAtTime(v, t + sec + 0.7);
 };
 
+AUDIO.setZoom = function (zf) {
+  if (!AUDIO.started || Math.abs(zf - (AUDIO.zf || 0)) < 0.04) return;
+  AUDIO.zf = zf;
+  const t = AUDIO.ctx.currentTime; if (t < (AUDIO.duckUntil || 0)) return;
+  AUDIO.music.gain.setTargetAtTime(AUDIO.vol.music * 0.55 * (1 - 0.4 * zf), t, 0.3);
+};
 function tone(dest, type, f0, f1, t, dur, peak, attack = 0.005, filter) {
   const c = AUDIO.ctx, o = c.createOscillator(), g = c.createGain();
   o.type = type; o.frequency.setValueAtTime(f0, t);
@@ -196,6 +203,30 @@ AUDIO.sfx = function (name, arg) {
     case 'error': tone(d, 'square', 220, 180, t, 0.15, 0.06, 0.005, 1000); break;
     case 'buy': tone(d, 'triangle', chordTone(1, 0), chordTone(1, 2), t, 0.15, 0.15); tone(d, 'sine', chordTone(2, 2), 0, t + 0.08, 0.25, 0.08); break;
     // ---- things that answer when you tap them
+    // ---- v1.8: strokes, combos, rare moments and the sounds of a day
+    case 'stroke': {
+      if (now - (AUDIO.strokeT || 0) > 0.9) AUDIO.strokeN = 0;
+      AUDIO.strokeT = now; const n = AUDIO.strokeN = (AUDIO.strokeN || 0) + 1;
+      const f = mtof(SCALE[(n - 1) % SCALE.length] + (Math.floor((n - 1) / SCALE.length) % 2) * 12);
+      tone(d, 'sine', f * 0.5, f, t, 0.09, 0.15); tone(d, 'triangle', f * 2, f * 2, t, 0.05, 0.03);
+      break;
+    }
+    case 'combo': { const n = Math.max(1, arg | 0), f = mtof(SCALE[(n - 1) % SCALE.length] + 12 + (n > SCALE.length ? 12 : 0)); tone(d, 'triangle', f, f, t, 0.18, 0.1); tone(d, 'sine', f * 1.5, f * 1.5, t + 0.05, 0.16, 0.06); break; }
+    case 'rare': {
+      const ch = chordNow();
+      [0, 1, 2, 3, 0, 1, 2].forEach((k, i) => tone(d, 'sine', mtof(ch[k] + 24 + (i > 3 ? 12 : 0)), 0, t + i * 0.055, 0.5, 0.07));
+      noise(d, t, 0.6, 0.035, 7000, 0.7, 'highpass'); tone(d, 'triangle', mtof(ch[0] + 12), 0, t, 0.7, 0.08);
+      break;
+    }
+    case 'chime': { const a = chordTone(2, 0), b = chordTone(2, 2); [0, 0.55, 1.1].forEach((o, i) => { tone(d, 'sine', i % 2 ? b : a, 0, t + o, 1.4, 0.09); tone(d, 'sine', (i % 2 ? b : a) * 2.76, 0, t + o, 0.5, 0.02); }); break; }
+    case 'rooster': [[520, 760, 0, 0.16], [760, 820, 0.17, 0.12], [820, 700, 0.3, 0.3], [700, 430, 0.6, 0.45]].forEach(([a, b, o, len]) => tone(AUDIO.amb, 'sawtooth', a, b, t + o, len, 0.09, 0.02, 2200)); break;
+    case 'thunder': noise(AUDIO.amb, t, 2.4, 0.5, 90, 0.6, 'lowpass'); noise(AUDIO.amb, t + 0.3, 1.6, 0.22, 220, 0.5, 'lowpass'); tone(AUDIO.amb, 'sine', 55, 38, t, 1.8, 0.18, 0.1); break;
+    case 'twinkle': tone(d, 'sine', 3200, 1500, t, 0.9, 0.05, 0.02); tone(d, 'sine', 4200, 2100, t + 0.08, 0.8, 0.03, 0.02); break;
+    case 'peep': [0, 0.14, 0.28].forEach(o => tone(d, 'sine', 2500, 3200, t + o, 0.07, 0.07)); break;
+    case 'clap': noise(d, t, 0.035, 0.14, 1600, 2); noise(d, t + 0.012, 0.03, 0.08, 2600, 2); break;
+    case 'shutter': noise(d, t, 0.03, 0.2, 3000, 2); noise(d, t + 0.09, 0.05, 0.16, 1800, 2); break;
+    case 'lamp': tone(AUDIO.amb, 'sine', 1900, 2300, t, 0.05, 0.05); break;
+    case 'wish': { const a = chordTone(2, 1), b = chordTone(2, 3); tone(d, 'sine', a, a, t, 0.25, 0.08); tone(d, 'sine', b, b, t + 0.12, 0.35, 0.08); break; }
     case 'chirp': { const k = 3 + ((Math.random() * 5) | 0); tone(d, 'sine', scaleTone(k), scaleTone(k) * 1.5, t, 0.07, 0.1); tone(d, 'sine', scaleTone(k + 2), scaleTone(k + 2) * 1.4, t + 0.09, 0.09, 0.1); break; }
     case 'cluck': [0, 0.09].forEach(o => { tone(d, 'square', 620, 380, t + o, 0.05, 0.06, 0.003, 1800); }); tone(d, 'square', 780, 520, t + 0.2, 0.09, 0.07, 0.003, 2000); break;
     case 'moo': tone(d, 'sawtooth', 150, 118, t, 0.7, 0.09, 0.08, 600); tone(d, 'sine', 300, 236, t, 0.7, 0.04, 0.08); break;
@@ -229,7 +260,7 @@ AUDIO.tick = function (night) {
       }
       if (s % 16 === 8) tone(AUDIO.music, 'triangle', mtof(ch[1] - 12), 0, t, beat * 6, 0.07, 0.02, 600);
       // a growing farm adds a plucked arpeggio between the beats...
-      if (rich >= 1 && s % 2 === 1 && (rich >= 3 || s % 4 === 1)) tone(AUDIO.music, 'triangle', mtof(ch[(s >> 1) % 4] + 12), 0, t, beat * 1.6, 0.026, 0.004, 1800).connect(AUDIO.verb);
+      if (rich >= 1 && !night && s % 2 === 1 && (rich >= 3 || s % 4 === 1)) tone(AUDIO.music, 'triangle', mtof(ch[(s >> 1) % 4] + 12), 0, t, beat * 1.6, 0.026, 0.004, 1800).connect(AUDIO.verb);
       // ...then a soft shaker and a heartbeat...
       if (rich >= 2) {
         if (s % 4 === 2) noise(AUDIO.music, t, 0.06, 0.02, 6500, 0.8, 'highpass');
@@ -243,6 +274,8 @@ AUDIO.tick = function (night) {
         melIdx = Math.max(0, Math.min(SCALE.length - 1, melIdx + [-2, -1, -1, 0, 1, 1, 2][(Math.random() * 7) | 0]));
         let n = SCALE[melIdx];
         if (s % 8 === 0) { const ct = ch.map(x => x + 12).concat(ch.map(x => x + 24)); n = ct.reduce((a, b) => Math.abs(b - n) < Math.abs(a - n) ? b : a); }
+        if (night && Math.random() < 0.6) n -= 12;      // the night version of the tune sits lower and softer
+        if (AUDIO.band > c.currentTime) tone(AUDIO.music, 'square', mtof(n + 12), 0, t, beat * 1.2, 0.022, 0.005, 2600);   // the travelling band joins in
         const g = tone(AUDIO.music, 'triangle', mtof(n), 0, t, beat * 3, 0.06, 0.01, 2400);
         g.connect(AUDIO.verb);
         // music-box sparkle an octave up
@@ -251,6 +284,22 @@ AUDIO.tick = function (night) {
     }
     // ambience
     if (AUDIO.vol.amb > 0.001) {
+      // steady rain
+      if (AUDIO.rain > 0.02) noise(AUDIO.amb, t, beat * 1.7, 0.035 * AUDIO.rain, 5200, 0.4, 'highpass');
+      // zoomed in close, you hear what you're looking at
+      const M = AUDIO.closeMix;
+      if (M) {
+        const A = AUDIO.amb;
+        if (M.mill > 0.05 && s % 4 === 0) { tone(A, 'sawtooth', 96, 72, t, 0.55, 0.07 * M.mill, 0.12, 320); noise(A, t + 0.1, 0.3, 0.03 * M.mill, 700, 1.5); }
+        if (M.bubble > 0.05 && Math.random() < 0.55) { const f = 260 + Math.random() * 260; tone(A, 'sine', f, f * 1.9, t + Math.random() * 0.2, 0.07, 0.08 * M.bubble); }
+        if (M.fire > 0.05 && Math.random() < 0.6) noise(A, t + Math.random() * 0.2, 0.03, 0.09 * M.fire, 2600 + Math.random() * 2000, 3);
+        if (M.hens > 0.05 && Math.random() < 0.14) [0, 0.09].forEach(o => tone(A, 'square', 620, 380, t + o, 0.05, 0.05 * M.hens, 0.003, 1800));
+        if (M.cow > 0.05 && Math.random() < 0.03) tone(A, 'sawtooth', 150, 118, t, 0.7, 0.07 * M.cow, 0.08, 600);
+        if (M.bees > 0.05 && s % 2 === 0) tone(A, 'sawtooth', 185 + Math.random() * 20, 195, t, 0.36, 0.03 * M.bees, 0.08, 1100);
+        if (M.water > 0.05 && Math.random() < 0.3) { const f = 420 + Math.random() * 300; tone(A, 'sine', f, f * 1.8, t + Math.random() * 0.2, 0.06, 0.05 * M.water, 0.004, 2400); }
+        if (M.steps > 0.05) for (let k = 0; k < Math.min(3, Math.ceil(M.steps * 3)); k++) noise(A, t + k * 0.13 + Math.random() * 0.05, 0.035, 0.07 * Math.min(1, M.steps), 380, 1.2, 'lowpass');
+        if (M.hammer > 0.05 && s % 2 === 0) noise(A, t, 0.03, 0.06 * M.hammer, 2200, 4);
+      }
       if (!night && Math.random() < 0.06) { const f = 2400 + Math.random() * 1600; for (let k = 0; k < 2 + (Math.random() * 3 | 0); k++) tone(AUDIO.amb, 'sine', f, f * (1.3 + Math.random() * 0.4), t + k * 0.09, 0.07, 0.03); }
       if (night && s % 2 === 0) { for (let k = 0; k < 3; k++) tone(AUDIO.amb, 'sine', 4200, 4300, t + k * 0.035, 0.025, 0.008); }
       if (Math.random() < 0.015) noise(AUDIO.amb, t, 2.5, 0.025, 500, 0.5, 'lowpass');

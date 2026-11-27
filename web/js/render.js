@@ -71,7 +71,7 @@ R.worldToScreen = function (wx, wy) {
 };
 R.clampCam = function () {
   const c = R.cam;
-  c.z = Math.max(0.45, Math.min(2.6, c.z));
+  c.z = Math.max(0.36, Math.min(3.1, c.z));   // soft limits: FX.cam springs it back inside 0.45 to 2.6
   c.x = Math.max(T * 2, Math.min(MW * T - T * 2, c.x));
   c.y = Math.max(T * 2, Math.min(MH * T - T * 2, c.y));
 };
@@ -900,6 +900,16 @@ function drawParticles(ctx, dt) {
       }
       case 'steam': ctx.globalAlpha = (1 - f) * 0.5; ell(ctx, p.x + Math.sin(p.life * 3) * 3, p.y, p.size * (0.6 + f), p.size * (0.6 + f), '#ffffff'); break;
       case 'smoke': ctx.globalAlpha = (1 - f) * 0.45; ell(ctx, p.x + Math.sin(p.life * 2) * 4, p.y, p.size * (0.6 + f * 1.4), p.size * (0.6 + f * 1.4), '#c8c0b8'); break;
+      case 'gleaf': {
+        ctx.save(); ctx.translate(p.x, p.y + Math.sin(p.life * 5 + p.size) * 6); ctx.rotate(p.life * 6 + p.size); ctx.globalAlpha = f > 0.8 ? (1 - f) * 5 : Math.min(1, f * 6);
+        ctx.beginPath(); ctx.ellipse(0, 0, 3.2, 1.6, 0, 0, Math.PI * 2); ctx.fillStyle = p.col; ctx.fill(); ctx.restore(); break;
+      }
+      case 'ring': { ctx.globalAlpha = (1 - f) * 0.9; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size * (0.3 + f), p.size * (0.3 + f) * 0.5, 0, 0, Math.PI * 2); ctx.strokeStyle = p.col || '#fff6b0'; ctx.lineWidth = 2.2 * (1 - f) + 0.4; ctx.stroke(); break; }
+      case 'text': {
+        ctx.globalAlpha = f < 0.7 ? 1 : (1 - f) / 0.3; const s = 1 + Math.sin(Math.min(1, f * 5) * Math.PI) * 0.35;
+        ctx.font = 'bold ' + (p.size * s).toFixed(1) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.strokeText(p.text, p.x, p.y); ctx.fillStyle = p.col || '#ffe48a'; ctx.fillText(p.text, p.x, p.y); p.vy *= 0.96; break;
+      }
       case 'leaf': {
         p.vx = Math.sin(p.life * 2.5 + p.size) * 18;
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.sin(p.life * 3) * 1.2); ctx.globalAlpha = f > 0.8 ? (1 - f) * 5 : 1;
@@ -999,7 +1009,7 @@ function drawLights(ctx, night, t) {
     const d = BUILDINGS[b.type], bx = (b.x + d.w / 2) * T, by = (b.y + d.h) * T;
     const fl = 0.9 + Math.sin(t * 9 + b.id) * 0.1;
     switch (b.type) {
-      case 'lantern': L(bx + 8, by - 41, 90, '#ffc860', 0.55 * fl); break;
+      case 'lantern': L(bx + 8, by - 41, 90, '#ffc860', 0.55 * fl * lanternOn(b, night) / Math.max(0.05, night)); break;
       case 'storehouse': L(bx, by - 60, 60, '#ffc860', 0.3); break;
       case 'creator': L(bx, by - 26, 80, '#ffd070', 0.45 * fl); break;
       case 'market': L(bx, by - 40, 70, '#ffb860', 0.3); break;

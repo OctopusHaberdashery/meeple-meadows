@@ -37,6 +37,17 @@ Grand Harvest Fair.
   with confetti, farm sounds are tuned to the music (which gains instruments as the farm grows), wind crosses the crops
   in waves, grass parts around running Meeples, birds perch on scarecrows, long shadows at sunset, and almost
   anything you tap answers back.
+- Landmarks: five old places are hidden in the woods (a ruined cottage, standing stones, a beached rowboat, a hollow
+  oak, a wayside shrine). Clear a way to one and explore it for a story, a gift and a lasting bonus.
+- Wonders: the Clock Tower, Harvest Hall and Observatory are great works built in four stages, each needing a
+  delivery from storage before the Meeples can carry on. Each gives the whole farm a lasting bonus.
+- Charm: decorations, landmarks and Wonders add Charm, which brings passers-by who admire the farm and spend at the stall.
+- Meeple wishes: now and then a Meeple wants a hat, more of a crop, or a new bench; granting it makes them faster for a while.
+- Little surprises: a rainbow after rain, a shooting star at night, a lost duckling, a travelling band.
+- A welcome-back note from Pip when you return, and a postcard mode (Pause → Take a Postcard) that saves a framed picture.
+- More feel: press and hold a Meeple to follow it, double-tap to zoom, sound that follows what you zoom in on, body
+  language (leaning under loads, high-fives, sheltering from rain), paths worn where Meeples walk most, footprints,
+  puddles, thunder, morning mist, a rooster at dawn, lanterns that light one by one, and extra weight on rare moments.
 - Fishing (optional): build a Fishing Dock beside a pond and give a Meeple the Fish job. Fishing XP
   unlocks rarer fish and raises their odds; tap the dock to play the reel-in mini-game. Fish go to the
   Smokehouse, the Sushi Counter, and several kitchen recipes.
@@ -77,8 +88,10 @@ plus on pause and level-up).
   - `js/world2.js`: discoveries, compost, orders, journal, hats, stats, Blue Ribbons, legacy
   - `js/world3.js`: pests and their hunters, bee flowers, trees, ducks, walking styles
   - `js/world4.js`: building sites, Pip's requests, Meeple records and badges, crop mastery, the daily visitor
+  - `js/world5.js`: landmarks, Wonders, Charm and passers-by, Meeple wishes, surprises, worn paths
   - `js/fx.js`: construction drawing, squash and stretch, shadows, grass, birds, ripples, confetti, camera easing
-  - `js/render.js`, `js/ui.js`, `js/ui2.js`, `js/ui3.js`, `js/ui4.js`, `js/audio.js`, `js/main.js`
+  - `js/fx2.js`: landmark and Wonder art, weather, body language, follow camera, close-up sound, rare moments
+  - `js/render.js`, `js/ui.js`, `js/ui2.js`, `js/ui3.js`, `js/ui4.js`, `js/ui5.js`, `js/audio.js`, `js/main.js`
   - `dev/`: test helpers (autoplay bot, screenshots). Not included in the APK.
 - `android/`: WebView wrapper (`MainActivity.java`), manifest, icons, `build.sh`
 - `pwa/`: the installable web app: manifest, icons, service worker, `build.py` and `publish.sh`
@@ -100,7 +113,7 @@ Bump the version when installing over an older copy, e.g. `VERSION_CODE=3 VERSIO
 ## Pacing
 
 An autoplay bot that plays efficiently reached the final Fair after ~58 hours of
-in-game time (v1.7; the bot doesn't use orders, animals, compost or the daily visitor, which add extra income). A human player will likely take longer. Set `PACE` in `web/js/data.js`
+in-game time (v1.8; the bot doesn't use orders, animals, compost, the daily visitor, landmarks or Wonders, which add extra income and bonuses). A human player will likely take longer. Set `PACE` in `web/js/data.js`
 to stretch or shrink the curve (e.g. `1.5` = 50% more produce per goal).
 
 You can test in a desktop browser by serving `web/` (e.g. `python -m http.server`);

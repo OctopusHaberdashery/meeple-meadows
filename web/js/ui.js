@@ -384,7 +384,7 @@ function paintPlot(i) {
   if (p.crop === UI.paintCrop) return true;
   setPlotCrop(i, UI.paintCrop);
   R.onEvent({ t: 'plant', i });
-  AUDIO.sfx('pop');
+  AUDIO.sfx('stroke');   // each plot in one sweep sounds a note higher than the last
   return true;
 }
 // --- fishing dock
@@ -1025,12 +1025,14 @@ function openPause() {
     <button class="btn green" data-a="resume">▶ Resume</button>
     <button class="btn" data-a="save">Save Game</button>
     <button class="btn" data-a="settings">${iconImg('gear', 'sm')} Settings</button>
+    <button class="btn" data-a="photo">📷 Take a Postcard</button>
     <button class="btn" data-a="help">How to Play</button>
     <button class="btn" data-a="title">Save & Return to Title</button></div>`, a => {
     if (a === 'resume') { closeModal(); UI.paused = false; }
     else if (a === 'save') { const ok = saveGame(); toast(ok ? 'Game saved' : 'Save failed!', !ok, 'scroll'); }
     else if (a === 'settings') openSettings(true);
     else if (a === 'help') openHelp(true);
+    else if (a === 'photo') { closeModal(); UI.paused = false; startPhoto(); }
     else if (a === 'title') { saveGame(); closeModal(); UI.paused = false; toTitle(); }
   }, () => { closeModal(); UI.paused = false; });
 }
@@ -1078,6 +1080,9 @@ function openHelp(fromPause) {
     <p>${iconImg('hammer', 'sm')} New buildings are <b>built by your Meeples</b>, piece by piece. The more free hands, the faster it goes. Tap a site to see how it's coming along.</p>
     <p>${iconImg('scroll', 'sm')} <b>Pip's requests</b> (bottom left) are small jobs with a reward. A <b>traveller</b> also stops by the market once a day with a gift.</p>
     <p>${iconImg('star', 'sm')} <b>Mastery</b>: bank 100, 1,000 and 10,000 of a crop for stars that make it grow faster and sell for more.</p>
+    <p>🔎 Old <b>landmarks</b> are hidden in the woods. Clear a way to one and tap it. <b>Wonders</b> (Build → Wonders) are great works built in four stages, each with a lasting bonus.</p>
+    <p>♥ Decorations add <b>Charm</b>, which brings passers-by who spend at your stall. Keep an eye out for small surprises, too.</p>
+    <p>${iconImg('meeple', 'sm')} <b>Press and hold</b> a Meeple to follow it, <b>double-tap</b> the ground to zoom, and zoom in close to hear the farm at work.</p>
     <p>${iconImg('soil', 'sm')} Tap <b>Crops</b>, pick a crop, then tap or drag across plots to plant it. Build more plots from <b>Build</b>; touching plots join into one bed.</p>
     <p>${iconImg('orders', 'sm')} An <b>Orders Board</b> brings requests from the neighbours. Fill them from storage before they expire for extra coins and prizes.</p>
     <p>${iconImg('fertilizer', 'sm')} A <b>Compost Bin</b> turns spent plants (and produce you toss in) into <b>fertilizer</b>. Fertilized soil can give a double harvest.</p>

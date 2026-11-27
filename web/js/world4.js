@@ -18,6 +18,8 @@ function buildNeed(type) {
   const d = BUILDINGS[type], a = d.w * d.h;
   return Math.round((22 + 16 * Math.log10(1 + d.cost)) * (a === 1 ? 0.45 : a <= 4 ? 1 : 2));
 }
+// a Wonder waits between stages until its next delivery arrives
+const siteWaiting = b => !!(b.con && b.con.req) && b.con.p >= b.con.need * b.con.stage / 4 - 1e-6;
 const siteCap = b => { const d = BUILDINGS[b.type]; return Math.min(16, 2 * (d.w + d.h)); };
 function startSite(type, x, y, cost) {
   const d = BUILDINGS[type];
@@ -69,6 +71,7 @@ function tickSites(dt) {
   for (const m of S.meeples) if (m.task && m.task.type === 'construct') { SITE_N[m.task.b] = (SITE_N[m.task.b] || 0) + 1; if (!m.path.length) at[m.task.b] = 1; }
   let n = 0;
   for (const b of S.buildings) if (b.of) {
+    if (siteWaiting(b)) continue;
     n++;
     // nobody can get to it (walled in, or everyone is fishing): it slowly finishes itself
     if (at[b.id]) b.con.idle = 0;
@@ -78,7 +81,7 @@ function tickSites(dt) {
 }
 function pickBuild(m) {
   let best = null, bd = 1e9;
-  for (const b of S.buildings) if (b.of && (SITE_N[b.id] || 0) < siteCap(b)) {
+  for (const b of S.buildings) if (b.of && !siteWaiting(b) && (SITE_N[b.id] || 0) < siteCap(b)) {
     const d = Math.abs(b.x * T - m.x) + Math.abs(b.y * T - m.y); if (d < bd) { bd = d; best = b; }
   }
   if (!best) return false;
@@ -122,13 +125,14 @@ function idleMoment(m, s) {
 function arrive4(m, t, dt) {
   const b = BMAP[t.b];
   if (t.type === 'construct') {
-    if (!b || !b.of) { m.task = null; m.act = 0; return; }
+    if (!b || !b.of || siteWaiting(b)) { m.task = null; m.act = 0; return; }
     const d = BUILDINGS[b.type], w = mWork(m);
     m.face = (b.x + d.w / 2) * T >= m.x ? 1 : -1;
     // shuffle to their own spot on the tile so a crowd of builders doesn't stand in one pile
     const tx = (t.spot % MW) * T + T / 2 + t.ox, ty = ((t.spot / MW) | 0) * T + T / 2 + t.oy;
     m.x += (tx - m.x) * Math.min(1, dt * 5); m.y += (ty - m.y) * Math.min(1, dt * 5);
     m.act += dt * w; b.con.p += dt * w; b.con.idle = 0;
+    if (b.con.req) b.con.p = Math.min(b.con.p, b.con.need * b.con.stage / 4);
     mRec(m, 'b', dt);
     if ((t.sw -= dt * w) <= 0) { t.sw = 0.46 + Math.random() * 0.1; emit({ t: 'hammer', b: b.id, x: m.x, y: m.y, face: m.face, dig: b.con.p < b.con.need * BUILD_FOUND }); }
     if (b.con.p >= b.con.need) finishSite(b);

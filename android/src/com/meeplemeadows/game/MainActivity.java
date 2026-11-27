@@ -144,5 +144,25 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void exitApp() { runOnUiThread(MainActivity.this::finish); }
+
+        /** Saves a postcard (PNG as base64) to Pictures/MeepleMeadows. Needs no permission on Android 10 and up. */
+        @JavascriptInterface
+        public boolean savePicture(String b64, String name) {
+            try {
+                if (Build.VERSION.SDK_INT < 29) return false;
+                byte[] png = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+                android.content.ContentValues v = new android.content.ContentValues();
+                v.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
+                v.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png");
+                v.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/MeepleMeadows");
+                android.net.Uri uri = getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+                if (uri == null) return false;
+                try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
+                    if (out == null) return false;
+                    out.write(png);
+                }
+                return true;
+            } catch (Exception e) { return false; }
+        }
     }
 }

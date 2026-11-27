@@ -154,10 +154,10 @@ function makeMeeple(crop, x, y) {
 
 // ---------------------------------------------------------------- derived stats
 const upg = id => S.upg[id] || 0;
-const mSpeed = m => m.speed * (1 + 0.1 * upg('boots') + JB.walk);
+const mSpeed = m => m.speed * (1 + 0.1 * upg('boots') + JB.walk) * happyMult(m);
 const mCarry = m => m.carry + upg('basket');
-const mWork = m => m.work * (1 + 0.15 * upg('hands'));
-const growMult = p => (1 + 0.12 * upg('soil') + JB.grow + MASTERY_GROW * masteryStars(p.crop)) * legacyMult() * p.bonus * (p.gh ? 1.5 * 1.6 : (p.wet ? 1.6 : 1));
+const mWork = m => m.work * (1 + 0.15 * upg('hands')) * happyMult(m);
+const growMult = p => (1 + 0.12 * upg('soil') + JB.grow + MASTERY_GROW * masteryStars(p.crop)) * legacyMult() * boostMult() * p.bonus * (p.gh ? 1.5 * 1.6 : (p.wet ? 1.6 : 1));
 const canCap = m => 4 + 3 * upg('cans') + Math.floor(m.carry / 2);
 const hasWell = () => S.buildings.some(b => b.type === 'well');
 const craftMult = () => 1 + 0.12 * upg('copper') + JB.craft;
@@ -709,7 +709,7 @@ function updateMeeple(m, dt) {
     const sp = mSpeed(m) * T * (onPath ? 1.4 : 1) * dt;
     const dx = tx - m.x, dy = ty - m.y, d = Math.hypot(dx, dy);
     if (Math.abs(dx) > 0.5) m.face = dx > 0 ? 1 : -1;
-    if (d <= sp) { m.x = tx; m.y = ty; m.path.shift(); }
+    if (d <= sp) { m.x = tx; m.y = ty; m.path.shift(); treadOn(n); }
     else { m.x += dx / d * sp; m.y += dy / d * sp; }
     m.walked = (m.walked || 0) + Math.min(d, sp);
     m.moving = true;

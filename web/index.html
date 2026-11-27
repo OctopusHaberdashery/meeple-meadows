@@ -238,6 +238,9 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
 .banner.big b{font-size:2.6rem}
 .banner.big .ico{width:4.6rem;height:4.6rem}
 @keyframes banner{0%{transform:translate(-170vw,-50%) rotate(-6deg)}15%{transform:translate(-45%,-50%) rotate(2deg)}23%{transform:translate(-51%,-50%) rotate(-1deg)}30%,76%{transform:translate(-50%,-50%) rotate(0)}100%{transform:translate(170vw,-50%) rotate(6deg)}}
+/* following a Meeple, and the postcard bar */
+#followPill{bottom:auto;top:calc(4.5rem + env(safe-area-inset-top));cursor:pointer;z-index:12}
+#photoBar{position:fixed;bottom:calc(1rem + env(safe-area-inset-bottom));z-index:30;max-width:96vw;flex-wrap:wrap;justify-content:center;white-space:normal}
 /* mastery stars and badges */
 .mstar{letter-spacing:-.04em;font-size:.95em}
 .mstar .b{color:#b87333}.mstar .v{color:#8a96a0}.mstar .g{color:#e8aa2a}.mstar .o{color:#d8c8a8}
@@ -272,7 +275,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
   </div>
   <div class="menu" id="mainMenu"></div>
 </div>
-<div class="ver">v1.7</div>
+<div class="ver">v1.8</div>
 
 <div id="hud" class="hidden">
   <div class="topbar">
@@ -331,13 +334,16 @@ input[type=range]{width:100%;accent-color:var(--green);height:1.6rem}
 <script src="js/world2.js"></script>
 <script src="js/world3.js"></script>
 <script src="js/world4.js"></script>
+<script src="js/world5.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/render.js"></script>
 <script src="js/fx.js"></script>
+<script src="js/fx2.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/ui2.js"></script>
 <script src="js/ui3.js"></script>
 <script src="js/ui4.js"></script>
+<script src="js/ui5.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

@@ -24,6 +24,7 @@ function updateAlerts() {
   let found = 0; for (const k in S.found) found += S.found[k] || 0;
   if (found) items.push(`<button class="pill alert" data-a="found">${iconImg('star')}<span>${found} to place</span></button>`);
   if (visitorBusy()) items.push(`<button class="pill alert good" data-a="visitor"><span style="font-size:1.2rem;padding-left:.3rem">🎁</span><span>Visitor</span></button>`);
+  extraAlerts(items);
   const h = items.join('');
   if (el.dataset.h !== h) { el.innerHTML = h; el.dataset.h = h; }
 }
@@ -33,6 +34,7 @@ $('hAlerts') && ($('hAlerts').onclick = e => {
   const a = el.dataset.a;
   if (a === 'orders') { const b = S.buildings.find(x => x.type === 'noticeboard'); if (b) openPanel('orders', b.id); }
   else if (a === 'found') openPanel('build', null, 'decor');
+  else if (a === 'wish' || a === 'explore' || a === 'wonder') extraAlertClick(a);
   else if (a === 'visitor') { if (FX.vpos) FX.focus(FX.vpos.x, FX.vpos.y); openVisitor(); }
   else if (a === 'stuck') {
     // each tap jumps to the next stuck building
