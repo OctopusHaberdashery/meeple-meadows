@@ -204,21 +204,107 @@ drawBuilding = function (ctx, b, t, dt) {
   }
 };
 
-// ---------------------------------------------------------------- the ground: worn paths, footprints and puddles
-FX.prints = []; FX.puddle = 0;
+// ---------------------------------------------------------------- the ground: desire paths, footprints and puddles
+FX.prints = []; FX.printN = 0; FX.puddle = 0; FX.wear = {}; FX.wearOf = null; FX.wearSweep = 0;
+const wearScale = () => (R.q.gs || 1) >= 1.4 ? 1.5 : (R.q.gs || 1) >= 1 ? 1.25 : 1;
+// One picture per 8 x 8 tiles, redrawn only when the wear under it changes. Everything in it is placed by
+// hashing the cell, so a cell that gains wear keeps the marks it had and adds to them.
+function renderWear(cx, cy) {
+  const A = WEAR.w, D = WEAR.d, x0 = cx * WCH, y0 = cy * WCH, cells = [];
+  // a cell just over the edge leans into this picture, so it is drawn here as well
+  for (let y = Math.max(0, y0 - 1); y <= Math.min(WH - 1, y0 + WCH); y++) for (let x = Math.max(0, x0 - 1); x <= Math.min(WW - 1, x0 + WCH); x++) if (A[y * WW + x] >= 3) cells.push(y * WW + x);
+  if (!cells.length) return null;
+  const s = wearScale(), size = 8 * T, c = newCanvas(Math.round(size * s), Math.round(size * s)), g = c.getContext('2d');
+  g.setTransform(s, 0, 0, s, -cx * size * s, -cy * size * s);
+  // only open grass wears; beds, paving and water keep their own look
+  g.beginPath(); let grass = 0;
+  for (let ty = cy * 8; ty < cy * 8 + 8; ty++) for (let tx = cx * 8; tx < cx * 8 + 8; tx++) {
+    if (!inMap(tx, ty)) continue; const i = idx(tx, ty);
+    if (S.floor[i] === FLOOR.GRASS && S.cover[i] !== COVER.WATER) { g.rect(tx * T, ty * T, T, T); grass++; }
+  }
+  if (!grass) return null;
+  g.clip();
+  const N = cells.length, PX = new Float32Array(N), PY = new Float32Array(N), AN = new Float32Array(N), E = new Float32Array(N);
+  for (let k = 0; k < N; k++) {
+    const i = cells[k], x = i % WW, y = (i / WW) | 0, w = A[i];
+    PX[k] = (x + 0.5) * WC + (hash2(x, y, 61) - 0.5) * 5; PY[k] = (y + 0.5) * WC + (hash2(x, y, 62) - 0.5) * 5;
+    AN[k] = D[i] * Math.PI / 8 + (hash2(x, y, 63) - 0.5) * 0.5;
+    E[k] = Math.max(0, Math.min(1, (w - 10) / 28));           // how much bare earth shows
+  }
+  const ell = (x, y, rx, ry, a) => { g.beginPath(); g.ellipse(x, y, rx, ry, a, 0, Math.PI * 2); g.fill(); };
+  // 1. grass pressed flat: paler, a little yellowed, and the fringe of any trail
+  g.fillStyle = '#a7a862';
+  for (let k = 0; k < N; k++) { const w = A[cells[k]]; g.globalAlpha = Math.min(0.36, 0.06 + w * 0.013); ell(PX[k], PY[k], 9.5 + E[k] * 3.5, 6.2 + E[k] * 2.6, AN[k]); }
+  // 2. earth showing through: small scuffs first, which spread and join into a trail
+  g.fillStyle = '#b39465';
+  for (let k = 0; k < N; k++) {
+    const e = E[k]; if (e <= 0) continue;
+    const i = cells[k], x = i % WW, y = (i / WW) | 0, ca = Math.cos(AN[k]), sa = Math.sin(AN[k]);
+    g.globalAlpha = 0.34 + 0.5 * e;
+    for (let j = 0; j < 3; j++) {
+      if (e < j * 0.11) break;
+      const al = (j - 1) * 5.2 + (hash2(x, y, 64 + j) - 0.5) * 4, ac = (hash2(x, y, 67 + j) - 0.5) * (5 - 2 * e), r = 2.4 + 5 * e + 1.9 * hash2(x, y, 70 + j);
+      ell(PX[k] + ca * al - sa * ac, PY[k] + sa * al + ca * ac, r * 1.3, r * 0.82, AN[k] + (hash2(x, y, 73 + j) - 0.5) * 0.7);
+    }
+  }
+  // 3. the middle of a well-used trail, packed hard and pale
+  g.fillStyle = '#cbb082';
+  for (let k = 0; k < N; k++) { const w = A[cells[k]]; if (w < 34) continue; g.globalAlpha = Math.min(0.5, (w - 34) / 44); ell(PX[k], PY[k], 8.5, 3.1, AN[k]); }
+  // 4. footprints: a heel and a toe, left and right of the line, some going each way
+  for (let k = 0; k < N; k++) {
+    const i = cells[k], x = i % WW, y = (i / WW) | 0, w = A[i], e = E[k], n = Math.min(5, 1 + (((w - 3) / 4) | 0));
+    const earth = e > 0.22, ca = Math.cos(AN[k]), sa = Math.sin(AN[k]);
+    g.fillStyle = earth ? '#7c6040' : '#4f7634'; g.globalAlpha = earth ? 0.55 - 0.2 * e : 0.42;
+    for (let j = 0; j < n; j++) {
+      const side = j & 1 ? 1 : -1, way = hash2(x, y, 80 + j) < 0.5 ? 1 : -1;
+      const al = (hash2(x, y, 85 + j) - 0.5) * 14, ac = side * 2.3 + (hash2(x, y, 90 + j) - 0.5) * 3.2;
+      const fx = (x + 0.5) * WC + ca * al - sa * ac, fy = (y + 0.5) * WC + sa * al + ca * ac;
+      g.beginPath(); g.ellipse(fx, fy, 2.3, 1.45, AN[k], 0, Math.PI * 2);
+      g.moveTo(fx + ca * way * 2.9 + 1, fy + sa * way * 2.9); g.arc(fx + ca * way * 2.9, fy + sa * way * 2.9, 1, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  // 5. grit and the last tufts holding on at the edges
+  for (let k = 0; k < N; k++) {
+    const e = E[k]; if (e < 0.3) continue;
+    const i = cells[k], x = i % WW, y = (i / WW) | 0, ca = Math.cos(AN[k]), sa = Math.sin(AN[k]);
+    if (hash2(x, y, 95) < 0.55) { g.globalAlpha = 0.75; g.fillStyle = '#ddcda6'; ell(PX[k] + (hash2(x, y, 96) - 0.5) * 11, PY[k] + (hash2(x, y, 97) - 0.5) * 8, 0.9, 0.7, 0); }
+    if (hash2(x, y, 98) < 0.4) { g.globalAlpha = 0.6; g.fillStyle = '#6d5436'; ell(PX[k] + (hash2(x, y, 99) - 0.5) * 11, PY[k] + (hash2(x, y, 100) - 0.5) * 8, 0.8, 0.6, 0); }
+    if (e < 0.85 && hash2(x, y, 101) < 0.3) {
+      const sd = hash2(x, y, 102) < 0.5 ? 1 : -1, ac = sd * (3.5 + 6 * e), al = (hash2(x, y, 103) - 0.5) * 10, ux = PX[k] + ca * al - sa * ac, uy = PY[k] + sa * al + ca * ac;
+      g.globalAlpha = 0.8; g.strokeStyle = '#5f9a45'; g.lineWidth = 0.9; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(ux - 1.4, uy); g.lineTo(ux - 2.2, uy - 3); g.moveTo(ux, uy); g.lineTo(ux, uy - 3.8); g.moveTo(ux + 1.4, uy); g.lineTo(ux + 2.3, uy - 2.8); g.stroke();
+    }
+  }
+  return c;
+}
+// when the ground itself changes (a bed dug, a path laid), the wear over it is redrawn too
+const _ms7 = markStale;
+markStale = function (cx, cy) { _ms7(cx, cy); if (cx >= 0 && cy >= 0 && cx < WCX && cy < WCY) WEAR.dirty[cy * WCX + cx] = 1; };
+const _gda7 = R.groundDirtyAll;
+R.groundDirtyAll = function () { _gda7(); WEAR.dirty.fill(1); };
+const _feet = new WeakMap();
+const PRINT_LIFE = [16, 7, 13], PRINT_COL = ['#2a1a0e', '#3d6a2a', '#6a4e2e'], PRINT_A = [0.34, 0.3, 0.38];
 const _gr7 = FX.ground;
 FX.ground = function (ctx, t, dt, tx0, ty0, tx1, ty1, z) {
   _gr7(ctx, t, dt, tx0, ty0, tx1, ty1, z);
-  // where Meeples walk most, the grass wears down to earth
-  const tr = S.tread;
-  if (tr) for (const k in tr) {
-    const v = tr[k]; if (v < 7) continue;
-    const i = +k, x = i % MW, y = (i / MW) | 0;
-    if (x < tx0 || x > tx1 || y < ty0 || y > ty1 || S.floor[i] !== FLOOR.GRASS || OCC[i] || S.cover[i]) continue;
-    ctx.globalAlpha = Math.min(0.62, (v - 7) / 45);
-    ctx.beginPath(); ctx.ellipse(x * T + T / 2 + (hash2(x, y, 61) - 0.5) * 6, y * T + T / 2 + (hash2(x, y, 62) - 0.5) * 6, 27, 21, 0, 0, Math.PI * 2); ctx.fillStyle = '#b89a68'; ctx.fill();
+  // where people walk most, the grass wears down: first prints, then scuffs, then a trail
+  wearSync();
+  if (FX.wearOf !== S) { FX.wearOf = S; FX.wear = {}; FX.prints.length = 0; }
+  const size = 8 * T, now = performance.now();
+  let budget = 1;
+  for (let cy = Math.floor(ty0 / 8); cy <= Math.floor(ty1 / 8); cy++) for (let cx = Math.floor(tx0 / 8); cx <= Math.floor(tx1 / 8); cx++) {
+    if (cx < 0 || cy < 0 || cx >= WCX || cy >= WCY) continue;
+    const ci = cy * WCX + cx; let c = FX.wear[ci];
+    if ((!c || WEAR.dirty[ci]) && budget > 0 && (!c || now - c.at > 700)) {
+      WEAR.dirty[ci] = 0;
+      c = FX.wear[ci] = { cv: renderWear(cx, cy), at: now, seen: now };
+      if (c.cv) budget--;
+    }
+    if (c && c.cv) { c.seen = now; ctx.drawImage(c.cv, cx * size, cy * size, size, size); }
   }
-  ctx.globalAlpha = 1;
+  // pictures nobody has looked at for a while are let go
+  if (now - FX.wearSweep > 5000) { FX.wearSweep = now; for (const k in FX.wear) if (FX.wear[k].cv && now - FX.wear[k].seen > 30000) delete FX.wear[k]; }
   // puddles gather while it rains and dry up afterwards
   const raining = S.weather && S.weather.rain > 0;
   FX.puddle = Math.max(0, Math.min(1, FX.puddle + (raining ? dt / 25 : -dt / 70)));
@@ -230,16 +316,41 @@ FX.ground = function (ctx, t, dt, tx0, ty0, tx1, ty1, z) {
     if (raining && Math.random() < dt * 1.5) FX.ripple(px + (Math.random() - 0.5) * 14, py + (Math.random() - 0.5) * 5, false);
   }
   ctx.globalAlpha = 1;
-  // footprints across damp soil and puddles splashing underfoot
+  // fresh footprints, left then right, exactly where each foot came down; and puddles splashing underfoot
+  const cap = Math.round(60 + 150 * (R.q.parts || 1));
+  const walk = m => {
+    if (!m.moving) { _feet.delete(m); return; }
+    let f = _feet.get(m); if (!f) { _feet.set(m, f = { x: m.x, y: m.y, s: 1 }); return; }
+    const ddx = m.x - f.x, ddy = m.y - f.y, dd = Math.hypot(ddx, ddy);
+    if (dd > 40) { f.x = m.x; f.y = m.y; return; }
+    if (dd < 7.5) return;
+    f.x = m.x; f.y = m.y; f.s = -f.s;
+    const tx = Math.floor(m.x / T), ty = Math.floor(m.y / T);
+    if (z < 0.6 || tx < tx0 || tx > tx1 || ty < ty0 || ty > ty1) return;
+    const i = idx(tx, ty), p = S.plots[i];
+    let kind;
+    if (p) { if (!(p.wet || p.gh)) return; kind = 0; }
+    else if (S.floor[i] === FLOOR.GRASS) kind = WEAR.w[Math.floor((m.y + 2) / WC) * WW + Math.floor(m.x / WC)] >= 14 ? 2 : FX.puddle > 0.3 ? 0 : 1;
+    else return;
+    const ux = ddx / dd, uy = ddy / dd;
+    FX.prints[FX.printN++ % cap] = { x: m.x - uy * f.s * 2.3, y: m.y + 2 + ux * f.s * 2.3, ux, uy, a: Math.atan2(uy, ux), t: 0, k: kind };
+  };
   for (const m of S.meeples) {
-    if (!m.moving) continue;
-    const i = tileOf(m), p = S.plots[i];
-    if (p && (p.wet || p.gh) && Math.random() < dt * 5 && FX.prints.length < 140) FX.prints.push({ x: m.x + (Math.random() - 0.5) * 6, y: m.y + 3, t: 0 });
-    if (FX.puddle > 0.3 && !p) { const x = i % MW, y = (i / MW) | 0; if (hash2(x, y, 77) <= 0.075 && Math.abs(m.x - (x * T + 12 + hash2(x, y, 78) * 22)) < 11 && Math.abs(m.y - (y * T + 20 + hash2(x, y, 79) * 16)) < 7 && Math.random() < dt * 9) { for (let k = 0; k < 4; k++) addPart({ type: 'drop', x: m.x + (Math.random() - 0.5) * 8, y: m.y, vx: (Math.random() - 0.5) * 60, vy: -40 - Math.random() * 40, g: 260, max: 0.45, size: 1.4 }); AUDIO.sfx('plop'); } }
+    walk(m);
+    if (!m.moving || FX.puddle <= 0.3) continue;
+    const i = tileOf(m);
+    if (!S.plots[i]) { const x = i % MW, y = (i / MW) | 0; if (hash2(x, y, 77) <= 0.075 && Math.abs(m.x - (x * T + 12 + hash2(x, y, 78) * 22)) < 11 && Math.abs(m.y - (y * T + 20 + hash2(x, y, 79) * 16)) < 7 && Math.random() < dt * 9) { for (let k = 0; k < 4; k++) addPart({ type: 'drop', x: m.x + (Math.random() - 0.5) * 8, y: m.y, vx: (Math.random() - 0.5) * 60, vy: -40 - Math.random() * 40, g: 260, max: 0.45, size: 1.4 }); AUDIO.sfx('plop'); } }
   }
-  for (let k = FX.prints.length - 1; k >= 0; k--) {
-    const q = FX.prints[k]; q.t += dt; if (q.t > 16) { FX.prints.splice(k, 1); continue; }
-    ctx.globalAlpha = 0.32 * (1 - q.t / 16); ctx.beginPath(); ctx.ellipse(q.x, q.y, 1.9, 1.2, 0, 0, Math.PI * 2); ctx.fillStyle = '#2a1a0e'; ctx.fill();
+  for (const w of WALKERS) walk(w);
+  if (FX.prints.length > cap) FX.prints.length = cap;
+  for (let k = 0; k < FX.prints.length; k++) {
+    const q = FX.prints[k]; if (!q) continue;
+    const life = PRINT_LIFE[q.k]; q.t += dt; if (q.t > life) { FX.prints[k] = null; continue; }
+    if (q.x < tx0 * T || q.x > (tx1 + 1) * T || q.y < ty0 * T || q.y > (ty1 + 1) * T) continue;
+    ctx.globalAlpha = PRINT_A[q.k] * (1 - q.t / life); ctx.fillStyle = PRINT_COL[q.k];
+    ctx.beginPath(); ctx.ellipse(q.x, q.y, 2.3, 1.45, q.a, 0, Math.PI * 2);
+    ctx.moveTo(q.x + q.ux * 2.9 + 1, q.y + q.uy * 2.9); ctx.arc(q.x + q.ux * 2.9, q.y + q.uy * 2.9, 1, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.globalAlpha = 1;
 };

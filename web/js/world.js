@@ -404,35 +404,104 @@ function accessTiles(b) {
   for (let yy = 0; yy < d.h; yy++) { out.push([b.x - 1, b.y + yy]); out.push([b.x + d.w, b.y + yy]); }
   return out.filter(([x, y]) => inMap(x, y)).map(([x, y]) => idx(x, y));
 }
-const _prev = new Int32Array(MW * MH), _mark = new Int32Array(MW * MH);
-let _gen = 1;
-// BFS from tile s until pred(tile) is true. Returns {path:[tiles excluding start], goal} or null.
+const _prev = new Int32Array(MW * MH), _mark = new Int32Array(MW * MH), _cost = new Int32Array(MW * MH), _shut = new Int32Array(MW * MH);
+const _bk = [], _NB = [1, 0, 5, -1, 0, 5, 0, 1, 5, 0, -1, 5, 1, 1, 7, 1, -1, 7, -1, 1, 7, -1, -1, 7];
+let _gen = 1, _bkTop = 0;
+// Nearest tile where pred(tile) is true, searching outwards from tile s. Steps go to all eight neighbours
+// (a straight step costs 5, a diagonal one 7, and a diagonal never squeezes past a blocked corner), so the
+// route found is the shortest one over the ground rather than the shortest along rows and columns.
+// Returns {path:[tiles excluding start], goal} or null. maxDist is in tiles.
 function bfs(s, pred, maxDist = 9999) {
   _gen++;
-  const q = [s]; _mark[s] = _gen; _prev[s] = -1;
-  const dist = new Map([[s, 0]]);
-  let head = 0;
-  while (head < q.length) {
-    const c = q[head++];
-    if (pred(c)) {
-      const path = []; let k = c;
-      while (k !== s) { path.push(k); k = _prev[k]; }
-      path.reverse();
-      return { path, goal: c };
-    }
-    const dc = dist.get(c); if (dc >= maxDist) continue;
-    const cx = c % MW, cy = (c / MW) | 0;
-    for (let d = 0; d < 4; d++) {
-      const nx = cx + (d === 0 ? 1 : d === 1 ? -1 : 0), ny = cy + (d === 2 ? 1 : d === 3 ? -1 : 0);
-      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
-      const n = ny * MW + nx;
-      if (_mark[n] === _gen) continue;
-      _mark[n] = _gen;
-      if (!walkable(n) && !pred(n)) continue;
-      _prev[n] = c; dist.set(n, dc + 1); q.push(n);
+  for (let c = 0; c <= _bkTop; c++) if (_bk[c]) _bk[c].length = 0;
+  _bkTop = 0;
+  (_bk[0] || (_bk[0] = [])).push(s); _mark[s] = _gen; _cost[s] = 0; _prev[s] = -1;
+  const lim = maxDist * 5;
+  for (let c = 0; c <= _bkTop; c++) {
+    const q = _bk[c]; if (!q) continue;
+    for (let h = 0; h < q.length; h++) {
+      const cur = q[h];
+      if (_cost[cur] !== c) continue;                      // a shorter way here was found later
+      if (pred(cur)) {
+        const path = []; let k = cur;
+        while (k !== s) { path.push(k); k = _prev[k]; }
+        path.reverse();
+        return { path, goal: cur };
+      }
+      if (c >= lim) continue;
+      const cx = cur % MW, cy = (cur / MW) | 0;
+      for (let d = 0; d < 24; d += 3) {
+        const dx = _NB[d], dy = _NB[d + 1], nx = cx + dx, ny = cy + dy;
+        if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
+        const n = ny * MW + nx, nc = c + _NB[d + 2];
+        if (_shut[n] === _gen) continue;
+        if (_mark[n] === _gen && _cost[n] <= nc) continue;
+        if (dx && dy && !(walkable(cy * MW + nx) && walkable(ny * MW + cx))) continue;
+        if (_mark[n] !== _gen) {
+          if (!walkable(n) && !pred(n)) { _shut[n] = _gen; continue; }
+          _mark[n] = _gen;
+        }
+        _cost[n] = nc; _prev[n] = cur;
+        (_bk[nc] || (_bk[nc] = [])).push(n);
+        if (nc > _bkTop) _bkTop = nc;
+      }
     }
   }
   return null;
+}
+
+// ---------------------------------------------------------------- walking in straight lines
+// A route is a list of tiles, but nobody walks from tile centre to tile centre. Whoever is walking looks
+// ahead along their route for the farthest point they can reach in a straight line (with a little elbow
+// room, so nobody clips a corner) and heads directly for it.
+const WALK_R = T * 0.3;
+function rayClear(x0, y0, x1, y1, a, b) {
+  let tx = Math.floor(x0 / T), ty = Math.floor(y0 / T);
+  const ex = Math.floor(x1 / T), ey = Math.floor(y1 / T), dx = x1 - x0, dy = y1 - y0;
+  const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+  const ddx = dx ? Math.abs(T / dx) : Infinity, ddy = dy ? Math.abs(T / dy) : Infinity;
+  let mx = dx ? (dx > 0 ? (tx + 1) * T - x0 : x0 - tx * T) / Math.abs(dx) : Infinity;
+  let my = dy ? (dy > 0 ? (ty + 1) * T - y0 : y0 - ty * T) / Math.abs(dy) : Infinity;
+  for (let n = 0; n < 240; n++) {
+    if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) return false;
+    const i = ty * MW + tx;
+    if (i !== a && i !== b && !walkable(i)) return false;
+    if (tx === ex && ty === ey) return true;
+    if (mx < my) { if (mx > 1) return true; tx += sx; mx += ddx; }
+    else { if (my > 1) return true; ty += sy; my += ddy; }
+  }
+  return false;
+}
+function sightClear(x0, y0, x1, y1, a, b) {
+  const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy);
+  if (d < 1) return true;
+  const px = -dy / d * WALK_R, py = dx / d * WALK_R;
+  return rayClear(x0, y0, x1, y1, a, b) && rayClear(x0 + px, y0 + py, x1 + px, y1 + py, a, b) && rayClear(x0 - px, y0 - py, x1 - px, y1 - py, a, b);
+}
+const _look = new WeakMap();
+function lookOf(o) { let L = _look.get(o); if (!L) _look.set(o, L = { p: null, t: 0, s: 0, a: 0 }); return L; }
+// drop the tiles of o.path that can be skipped, so path[0] is always somewhere o can walk straight to
+function lookAhead(o, dt) {
+  const p = o.path, L = lookOf(o);
+  if (L.p !== p) { L.p = p; L.t = 0; }
+  if (p.length < 2 || (L.t -= dt) > 0) return;
+  L.t = 0.16;
+  const here = tileOf(o), goal = p[p.length - 1];
+  const see = k => { const n = p[k]; return sightClear(o.x, o.y, (n % MW) * T + T / 2, ((n / MW) | 0) * T + T / 2, here, goal); };
+  let hi = Math.min(p.length - 1, 48), lo = 0;
+  if (see(hi)) lo = hi;
+  else while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (see(mid)) lo = mid; else hi = mid; }
+  if (lo > 0) p.splice(0, lo);
+}
+// walk up to sp towards path[0]; returns how far o moved
+function stepAlong(o, sp) {
+  const n = o.path[0], tx = (n % MW) * T + T / 2, ty = ((n / MW) | 0) * T + T / 2;
+  const dx = tx - o.x, dy = ty - o.y, d = Math.hypot(dx, dy), L = lookOf(o);
+  if (Math.abs(dx) > 0.5) o.face = dx > 0 ? 1 : -1;
+  if (d > 0.01) L.a = Math.atan2(dy, dx);
+  if (d <= sp) { o.x = tx; o.y = ty; o.path.shift(); L.t = 0; return d; }
+  o.x += dx / d * sp; o.y += dy / d * sp;
+  return sp;
 }
 function tileOf(m) { return idx(Math.max(0, Math.min(MW - 1, Math.floor(m.x / T))), Math.max(0, Math.min(MH - 1, Math.floor(m.y / T)))); }
 function accessSet(types) {
@@ -703,15 +772,17 @@ function updateMeeple(m, dt) {
     if (!m.task) return;
   }
   if (m.path.length) {
-    const n = m.path[0], tx = (n % MW) * T + T / 2, ty = ((n / MW) | 0) * T + T / 2;
+    const n = m.path[0];
     if (!walkable(n) && !(m.task && (m.task.plot === n))) { m.path = []; dropTask(m); return; }
     const onPath = S.floor[tileOf(m)] === FLOOR.PATH;
     const sp = mSpeed(m) * T * (onPath ? 1.4 : 1) * dt;
-    const dx = tx - m.x, dy = ty - m.y, d = Math.hypot(dx, dy);
-    if (Math.abs(dx) > 0.5) m.face = dx > 0 ? 1 : -1;
-    if (d <= sp) { m.x = tx; m.y = ty; m.path.shift(); treadOn(n); }
-    else { m.x += dx / d * sp; m.y += dy / d * sp; }
-    m.walked = (m.walked || 0) + Math.min(d, sp);
+    lookAhead(m, dt);
+    const ox = m.x, oy = m.y, from = tileOf(m), goal = m.path[m.path.length - 1];
+    const moved = stepAlong(m, sp), now = tileOf(m);
+    // something has been put down across the way: step back and think again
+    if (now !== from && now !== goal && !walkable(now)) { m.x = ox; m.y = oy; m.path = []; dropTask(m); return; }
+    treadOn(m, moved);
+    m.walked = (m.walked || 0) + moved;
     m.moving = true;
     return;
   }

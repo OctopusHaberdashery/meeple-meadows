@@ -182,11 +182,11 @@ function tickWalkers(dt) {
       else WALKERS.splice(k, 1);
       continue;
     }
-    const n = w.path[0], tx = (n % MW) * T + T / 2, ty = ((n / MW) | 0) * T + T / 2;
-    if (!walkable(n)) { WALKERS.splice(k, 1); continue; }       // the way has been built over: they wander off
-    const sp = 1.7 * T * dt, dx = tx - w.x, dy = ty - w.y, d = Math.hypot(dx, dy);
-    if (Math.abs(dx) > 0.5) w.face = dx > 0 ? 1 : -1;
-    if (d <= sp) { w.x = tx; w.y = ty; w.path.shift(); } else { w.x += dx / d * sp; w.y += dy / d * sp; }
+    if (!walkable(w.path[0])) { WALKERS.splice(k, 1); continue; }       // the way has been built over: they wander off
+    lookAhead(w, dt);
+    const wx = w.x, wy = w.y, wf = tileOf(w), moved = stepAlong(w, 1.7 * T * dt), wn = tileOf(w);
+    if (wn !== wf && !walkable(wn)) { w.x = wx; w.y = wy; WALKERS.splice(k, 1); continue; }
+    treadOn(w, moved);
     w.moving = true;
     // stop to admire something pretty on the way in
     if (!w.band && !w.looked && w.st === 'in') for (const b of S.buildings) {
@@ -265,9 +265,7 @@ function tickSurprises(dt) {
     d.t += dt; d.bob = (d.bob || 0) + dt;
     if (d.st === 'lost') { if (d.t > 260) SURP.duck = null; }
     else if (d.path.length) {
-      const n = d.path[0], tx = (n % MW) * T + T / 2, ty = ((n / MW) | 0) * T + T / 2, sp = 1.5 * T * dt, dx = tx - d.x, dy = ty - d.y, dd = Math.hypot(dx, dy);
-      if (Math.abs(dx) > 0.5) d.face = dx > 0 ? 1 : -1;
-      if (dd <= sp) { d.x = tx; d.y = ty; d.path.shift(); } else { d.x += dx / dd * sp; d.y += dy / dd * sp; }
+      lookAhead(d, dt); stepAlong(d, 1.5 * T * dt);
     } else { const v = surpriseCoins(); S.coins += v; S.stats.earned += v; emit({ t: 'surprise', k: 'duck', v, x: d.x, y: d.y }); SURP.duck = null; }
   } else if ((SURP.duckT -= dt) <= 0) {
     SURP.duckT = 600 + Math.random() * 700;
@@ -277,10 +275,63 @@ function tickSurprises(dt) {
   }
 }
 
-// ---------------------------------------------------------------- paths worn by many feet
-function treadOn(i) {
-  if (S.floor[i] !== FLOOR.GRASS || S.slot === -1) return;
-  const t = S.tread || (S.tread = {}); t[i] = Math.min(60, (t[i] || 0) + 1);
+// ---------------------------------------------------------------- desire paths: the ground remembers every footstep
+// Wear is kept on a grid three times finer than the tiles, one count per cell plus the way people were
+// heading when they crossed it. Each stride adds a little; grass slowly grows back. The renderer turns
+// the counts into trampled grass, footprints and, where enough feet have passed, a bare earth trail.
+const WN = 3, WC = T / WN, WW = MW * WN, WH = MH * WN, WCH = 8 * WN, WCX = Math.ceil(MW / 8), WCY = Math.ceil(MH / 8);
+const WEAR = { w: new Uint8Array(WW * WH), d: new Uint8Array(WW * WH), dirty: new Uint8Array(WCX * WCY), of: null };
+function wearTouch(x, y) {      // the picture of this cell (and of a chunk it leans into) needs redrawing
+  for (let dy = -1; dy <= 1; dy += 2) for (let dx = -1; dx <= 1; dx += 2) {
+    const cx = Math.floor((x + dx) / WCH), cy = Math.floor((y + dy) / WCH);
+    if (cx >= 0 && cy >= 0 && cx < WCX && cy < WCY) WEAR.dirty[cy * WCX + cx] = 1;
+  }
+}
+function wearSync() {           // a new or loaded farm brings its own trails
+  if (WEAR.of === S) return;
+  WEAR.of = S; WEAR.w.fill(0); WEAR.d.fill(0); WEAR.dirty.fill(1);
+  const a = S.wear;
+  if (Array.isArray(a)) {
+    let i = 0;
+    for (let k = 0; k + 1 < a.length; k += 2) { i += a[k]; if (i >= 0 && i < WW * WH) { WEAR.w[i] = Math.min(63, a[k + 1] >> 3); WEAR.d[i] = a[k + 1] & 7; } }
+  } else if (S.tread) {         // v1.8 kept one number per tile: turn it into trails along the old rows and columns
+    for (const k in S.tread) {
+      const v = Math.min(63, Math.round(S.tread[k])), x = (+k) % MW, y = ((+k) / MW) | 0; if (v < 3 || !inMap(x, y)) continue;
+      const c = (y * WN + 1) * WW + x * WN + 1, side = (n, d) => { const q = S.tread[idx(x + (d ? 0 : n), y + (d ? n : 0))]; return q >= 3; };
+      WEAR.w[c] = v; WEAR.d[c] = side(1, 0) || side(-1, 0) ? 0 : 4;
+      if (inMap(x - 1, y) && side(-1, 0)) { WEAR.w[c - 1] = v; WEAR.d[c - 1] = 0; }
+      if (inMap(x + 1, y) && side(1, 0)) { WEAR.w[c + 1] = v; WEAR.d[c + 1] = 0; }
+      if (inMap(x, y - 1) && side(-1, 1)) { WEAR.w[c - WW] = v; WEAR.d[c - WW] = 4; }
+      if (inMap(x, y + 1) && side(1, 1)) { WEAR.w[c + WW] = v; WEAR.d[c + WW] = 4; }
+    }
+  }
+  delete S.tread;
+}
+function wearPack() {           // [gap, wear * 8 + heading, gap, ...]; the faintest marks aren't worth keeping
+  const out = []; let last = 0;
+  for (let i = 0; i < WW * WH; i++) { const w = WEAR.w[i]; if (w < 3) continue; out.push(i - last, w * 8 + WEAR.d[i]); last = i; }
+  return out;
+}
+const _ser5 = serialize;
+serialize = function () { if (S && WEAR.of === S) S.wear = wearPack(); return _ser5(); };
+function wearFade() {           // grass grows back: about 6% of the wear goes each time
+  const A = WEAR.w;
+  for (let i = 0; i < A.length; i++) { const w = A[i]; if (!w) continue; const f = w * 0.94; A[i] = (f | 0) + (Math.random() < f - (f | 0) ? 1 : 0); }
+  WEAR.dirty.fill(1);
+}
+// o has just walked `moved` world units; every stride presses the ground underfoot a little more
+function treadOn(o, moved) {
+  const L = lookOf(o);
+  if ((L.s += moved) < 8) return;
+  L.s %= 8;
+  wearSync();
+  const x = o.x + (Math.random() - 0.5) * 7, y = o.y + 2 + (Math.random() - 0.5) * 5, tx = Math.floor(x / T), ty = Math.floor(y / T);
+  if (!inMap(tx, ty) || S.floor[ty * MW + tx] !== FLOOR.GRASS) return;
+  const cx = Math.floor(x / WC), cy = Math.floor(y / WC), i = cy * WW + cx, w = WEAR.w[i];
+  if (w < 4 || Math.random() < 0.12) WEAR.d[i] = ((Math.round(L.a / (Math.PI / 8)) % 8) + 8) % 8;     // which way the trail runs here (eight headings; either way along it)
+  if (w >= 63) return;
+  WEAR.w[i] = w + 1;
+  if (w < 4 || (w & 1)) wearTouch(cx, cy);
 }
 
 // ---------------------------------------------------------------- sheltering from the rain
@@ -306,6 +357,7 @@ arrive4 = function (m, t, dt) {
 // ---------------------------------------------------------------- tick
 let _t5 = 0, _passT = 60;
 function tick5(dt) {
+  wearSync();
   if (!S.landmarks) S.landmarks = genLandmarks();
   if (S.wishNext == null) S.wishNext = S.playTime + 240;
   if (S.bandNext == null) S.bandNext = S.playTime + 1200 + Math.random() * 900;
@@ -322,7 +374,7 @@ function tick5(dt) {
   if (every && S.slot !== -1 && (_passT -= 2) <= 0) { _passT = every * (0.7 + Math.random() * 0.6); if (WALKERS.length < 3) spawnWalkers(false); }
   if (S.slot !== -1 && S.level >= 3 && S.playTime > S.bandNext && !isNight()) { S.bandNext = S.playTime + 1500 + Math.random() * 1500; spawnWalkers(true); }
   // old trails slowly grow over
-  if (S.tread && Math.random() < 0.05) for (const k in S.tread) { S.tread[k] *= 0.94; if (S.tread[k] < 0.6) delete S.tread[k]; }
+  if (Math.random() < 0.05) wearFade();
   // a reachable landmark is worth a nudge, once
   for (const l of S.landmarks) if (!l.found && !l.seen && lmReachable(l)) { l.seen = true; emit({ t: 'lmnear', id: l.id }); }
 }

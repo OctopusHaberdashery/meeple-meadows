@@ -46,8 +46,11 @@ Grand Harvest Fair.
 - Little surprises: a rainbow after rain, a shooting star at night, a lost duckling, a travelling band.
 - A welcome-back note from Pip when you return, and a postcard mode (Pause → Take a Postcard) that saves a framed picture.
 - More feel: press and hold a Meeple to follow it, double-tap to zoom, sound that follows what you zoom in on, body
-  language (leaning under loads, high-fives, sheltering from rain), paths worn where Meeples walk most, footprints,
+  language (leaning under loads, high-fives, sheltering from rain), footprints,
   puddles, thunder, morning mist, a rooster at dawn, lanterns that light one by one, and extra weight on rare moments.
+- Meeples walk the way people do: straight to where they are going, cutting corners across open ground instead of
+  following the grid. Where they walk most, the grass is pressed flat, then marked with footprints, then worn to a
+  narrow earth trail. Trails that fall out of use slowly grow over.
 - Fishing (optional): build a Fishing Dock beside a pond and give a Meeple the Fish job. Fishing XP
   unlocks rarer fish and raises their odds; tap the dock to play the reel-in mini-game. Fish go to the
   Smokehouse, the Sushi Counter, and several kitchen recipes.
@@ -84,11 +87,11 @@ plus on pause and level-up).
 - `web/`: the game itself (HTML5 canvas, plain JavaScript, no dependencies)
   - `js/data.js`: crops, goods, recipes, buildings, levels, upgrades. `PACE` scales every level requirement.
   - `js/art.js` … `js/art5.js`: all art, drawn procedurally at load in a papercraft "sticker" style
-  - `js/world.js`: map generation, Meeple AI, crafting, saving
+  - `js/world.js`: map generation, Meeple AI, route finding and straight-line walking, crafting, saving
   - `js/world2.js`: discoveries, compost, orders, journal, hats, stats, Blue Ribbons, legacy
   - `js/world3.js`: pests and their hunters, bee flowers, trees, ducks, walking styles
   - `js/world4.js`: building sites, Pip's requests, Meeple records and badges, crop mastery, the daily visitor
-  - `js/world5.js`: landmarks, Wonders, Charm and passers-by, Meeple wishes, surprises, worn paths
+  - `js/world5.js`: landmarks, Wonders, Charm and passers-by, Meeple wishes, surprises, the wear map behind desire paths
   - `js/fx.js`: construction drawing, squash and stretch, shadows, grass, birds, ripples, confetti, camera easing
   - `js/fx2.js`: landmark and Wonder art, weather, body language, follow camera, close-up sound, rare moments
   - `js/render.js`, `js/ui.js`, `js/ui2.js`, `js/ui3.js`, `js/ui4.js`, `js/ui5.js`, `js/audio.js`, `js/main.js`
@@ -112,8 +115,8 @@ Bump the version when installing over an older copy, e.g. `VERSION_CODE=3 VERSIO
 
 ## Pacing
 
-An autoplay bot that plays efficiently reached the final Fair after ~58 hours of
-in-game time (v1.8; the bot doesn't use orders, animals, compost, the daily visitor, landmarks or Wonders, which add extra income and bonuses). A human player will likely take longer. Set `PACE` in `web/js/data.js`
+An autoplay bot that plays efficiently reached the final Fair after ~52 hours of
+in-game time (v1.8.1, down from ~58 because straight-line walking shortens every trip; the bot doesn't use orders, animals, compost, the daily visitor, landmarks or Wonders, which add extra income and bonuses). A human player will likely take longer. Set `PACE` in `web/js/data.js`
 to stretch or shrink the curve (e.g. `1.5` = 50% more produce per goal).
 
 You can test in a desktop browser by serving `web/` (e.g. `python -m http.server`);
