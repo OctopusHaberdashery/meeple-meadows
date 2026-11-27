@@ -41,6 +41,18 @@ function demoWorld() {
   R.groundDirtyAll();
 }
 
+// An iPad starts at High quality. If it can't keep that smooth, the game steps down to Medium, once, by itself.
+let slowT = 0, slowN = 0;
+function watchSpeed(dt) {
+  if (!SET.qualityAuto || SET.quality !== 'high' || UI.paused || dt > 0.2) return;
+  slowT += dt; slowN++;
+  if (slowT < 8) return;
+  const fps = slowN / slowT; slowT = 0; slowN = 0;
+  if (fps >= (SET.fps === 30 ? 24 : 40)) return;
+  SET.quality = 'medium'; SET.qualityAuto = false; saveSettings();
+  R.setQuality('medium'); for (const k in bURL) delete bURL[k]; for (const k in mURL) delete mURL[k];
+  toast('Switched to Medium quality to keep things smooth. You can change it back in Settings.');
+}
 function frame(now) {
   requestAnimationFrame(frame);
   if (!running) { lastFrame = now; return; }
@@ -71,6 +83,7 @@ function frame(now) {
       R.drawCoverLabels(ctx, Math.max(0, Math.floor(x0 / T)), Math.max(0, Math.floor(y0 / T)), Math.min(MW - 1, Math.ceil((x0 + vw) / T)), Math.min(MH - 1, Math.ceil((y0 + vh) / T)));
     }
     updateHud();
+    watchSpeed(dt);
     autosaveT += dt;
     if (autosaveT > SET.autosave) { autosaveT = 0; saveGame(); }
   }
@@ -90,11 +103,49 @@ window.onAppPause = appPause;
 window.onAppResume = appResume;
 window.addEventListener('resize', () => { if (R.ready) R.resize(); });
 
+// ---------------------------------------------------------------- iPad, iPhone and other browsers
+// What the Android wrapper does for the APK, the web app has to ask the browser for.
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_IPAD = IS_IOS && !/iPhone|iPod/.test(navigator.userAgent);
+// Keep the screen on while the game is in front: it only runs while it is on screen.
+let wakeLock = null;
+function keepAwake() {
+  if (!navigator.wakeLock) return;
+  if (!SET.keepAwake || document.hidden) { if (wakeLock) { const l = wakeLock; wakeLock = null; try { l.release(); } catch (e) { } } return; }
+  if (wakeLock) return;
+  try {
+    navigator.wakeLock.request('screen').then(l => {
+      if (wakeLock || !SET.keepAwake) { l.release(); return; }
+      wakeLock = l; l.addEventListener('release', () => { if (wakeLock === l) wakeLock = null; });
+    }).catch(() => { });
+  } catch (e) { }
+}
+document.addEventListener('visibilitychange', keepAwake);
+document.addEventListener('pointerup', keepAwake, { capture: true });      // the lock is dropped whenever the app is left: take it again on the next tap
+// Turning the tablet, Split View and Stage Manager: Safari sometimes reports the old size for a moment.
+function refit() { if (R.ready && (window.innerWidth !== R.W || window.innerHeight !== R.H)) R.resize(); }
+window.addEventListener('orientationchange', () => { setTimeout(refit, 120); setTimeout(refit, 500); });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', refit);
+// A long press or a second mouse button brings up a browser menu, and Safari zooms the whole page on a pinch, unless told not to.
+document.addEventListener('contextmenu', e => e.preventDefault());
+// A pinch on a trackpad (iPad with a keyboard case) arrives as these gesture events with no fingers down.
+let padZoom = null;
+document.addEventListener('gesturestart', e => { e.preventDefault(); padZoom = PTR.size === 0 && UI.inGame && !modalOpen() ? R.cam.z : null; }, { passive: false });
+document.addEventListener('gesturechange', e => { e.preventDefault(); if (padZoom === null || PTR.size) { padZoom = null; return; } padZoomTo(padZoom * e.scale, e.clientX, e.clientY, false); }, { passive: false });
+document.addEventListener('gestureend', e => { e.preventDefault(); if (padZoom !== null && !PTR.size) padZoomTo(padZoom * e.scale, e.clientX, e.clientY, true); padZoom = null; }, { passive: false });
+function padZoomTo(z, sx, sy) {
+  const before = R.screenToWorld(sx, sy);
+  R.cam.z = z; R.clampCam();
+  const after = R.screenToWorld(sx, sy);
+  R.cam.x += before.x - after.x; R.cam.y += before.y - after.y; R.clampCam();
+}
+
 const stage = s => window.__stage.push(s);
 async function boot() {
   const bar = p => { const el = $('loading'); if (el && el.firstChild) el.firstChild.textContent = 'Planting seeds… ' + Math.round(p * 100) + '%'; window.__artPct = Math.round(p * 100); };
   stage('boot start');
   loadSettings(); stage('settings');
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { }      // ask the browser not to clear saves
   ART.S = (QUALITY[SET.quality] || QUALITY.medium).art;
   R.q = QUALITY[SET.quality] || QUALITY.medium;
   await buildArtAsync(p => bar(p * 0.9)); stage('art built');

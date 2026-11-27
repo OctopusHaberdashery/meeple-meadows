@@ -20,6 +20,9 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 // ---------------------------------------------------------------- settings
 const SETTINGS_KEY = 'meeple_meadows_settings';
 const SET_DEFAULT = { master: 0.8, music: 0.5, sfx: 0.7, amb: 0.5, quality: 'medium', fps: 60, dayNight: true, showFps: false, uiScale: 1, autosave: 60, keepAwake: true, hints: true, lastSlot: null, costLabels: true };
+// an iPad's screen is sharp enough to show the difference and its chip quick enough not to mind
+// (qualityAuto: if it turns out not to be, the game steps down to Medium by itself, once)
+if (/iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) { SET_DEFAULT.quality = 'high'; SET_DEFAULT.qualityAuto = true; }
 let SET = Object.assign({}, SET_DEFAULT);
 function loadSettings() { try { Object.assign(SET, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { } }
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(SET)); } catch (e) { } }
@@ -29,6 +32,7 @@ function applySettings() {
   R.dayNight = SET.dayNight;
   $('fps').classList.toggle('hidden', !SET.showFps);
   if (window.AndroidBridge && AndroidBridge.keepScreenOn) AndroidBridge.keepScreenOn(!!SET.keepAwake);
+  if (typeof keepAwake === 'function') keepAwake();
 }
 
 // ---------------------------------------------------------------- state
@@ -64,13 +68,20 @@ function toast(html, bad, icon) {
   setTimeout(() => { t.style.transition = 'opacity .4s'; t.style.opacity = 0; setTimeout(() => t.remove(), 400); }, bad ? 1800 : 2600);
   if (bad) AUDIO.sfx('error');
 }
+// A tap on the meadow is followed by a click at the same spot, and by then that tap may have opened a panel,
+// pop-up or dialog there: tap a Meeple and the click landed on whichever button came up under the finger.
+// Nothing that a tap has only just put on screen is pressed by that same tap.
+let worldTapAt = -1e9, freshAt = -1e9;       // when the meadow was last tapped, and when something last came up over it
+const strayClick = () => freshAt >= worldTapAt && performance.now() - worldTapAt < 400;
 // onBack: what the Android back button does while this window is up (default: just close it)
 function modal(html, onclick, onBack) {
   const m = $('modal');
+  freshAt = performance.now();
   UI.modalBack = onBack || null;
   m.innerHTML = '<div class="mbox">' + html + '</div>';
   m.classList.remove('hidden');
   m.onclick = e => {
+    if (strayClick()) return;
     const el = e.target.closest('[data-a]');
     if (el) { AUDIO.sfx('click'); onclick && onclick(el.dataset.a, el.dataset.v, el); }
   };
@@ -82,9 +93,9 @@ function closeModal() { $('modal').classList.add('hidden'); $('modal').innerHTML
 function modalOpen() { return !$('modal').classList.contains('hidden'); }
 function hidePop() { $('pop').classList.add('hidden'); }
 function showPop(sx, sy, html, onclick) {
-  const p = $('pop'); p.innerHTML = html; p.classList.remove('hidden');
+  const p = $('pop'); p.innerHTML = html; p.classList.remove('hidden'); freshAt = performance.now();
   p.style.left = Math.max(100, Math.min(window.innerWidth - 100, sx)) + 'px'; p.style.top = Math.max(110, sy - 10) + 'px';
-  p.onclick = e => { const el = e.target.closest('[data-a]'); if (el) onclick(el.dataset.a, el.dataset.v); };
+  p.onclick = e => { if (strayClick()) return; const el = e.target.closest('[data-a]'); if (el) onclick(el.dataset.a, el.dataset.v); };
 }
 
 // ---------------------------------------------------------------- HUD
@@ -148,6 +159,7 @@ function updateHud() {
   updateAlerts();
 }
 $('modebar') && ($('modebar').onclick = e => {
+  if (strayClick()) return;
   if (e.target.closest('[data-a="done"]')) { AUDIO.sfx('click'); setMode(null); }
   else if (e.target.closest('[data-a="change"]')) { AUDIO.sfx('click'); openPanel('crops'); }
 });
@@ -195,7 +207,8 @@ function openPanel(type, id, tab) {
   hidePop();
   UI.panel = { type, id, tab: tab || (PANELS[type].tabs ? PANELS[type].tabs[0][0] : null) };
   R.sel = type === 'plot' ? { kind: 'plot', id } : (type === 'proc' || type === 'creator' || type === 'bldg' || type === 'greenhouse' || type === 'dock' || type === 'orders' || type === 'compost' || type === 'site') ? { kind: 'b', id } : type === 'meeple' ? { kind: 'm', id } : null;
-  UI.sig = ''; UI.pkey = null; $('panel').classList.remove('hidden');
+  UI.sig = ''; UI.pkey = null; $('panel').classList.remove('hidden'); freshAt = performance.now();
+  document.body.classList.add('panel-open');
   AUDIO.sfx('open');
   renderPanel(true);
 }
@@ -203,6 +216,7 @@ function closePanel() {
   if (!UI.panel) return;
   UI.panel = null; R.sel = null;
   $('panel').classList.add('hidden'); $('panel').innerHTML = '';
+  document.body.classList.remove('panel-open');
 }
 function renderPanel(force) {
   if (!UI.panel) return;
@@ -692,6 +706,7 @@ PANELS.goals = {
 
 // panel actions
 $('panel').addEventListener('click', e => {
+  if (strayClick()) return;
   const el = e.target.closest('[data-a]'); if (!el || !UI.panel) return;
   if (el.classList.contains('dis')) { AUDIO.sfx('error'); return; }
   const a = el.dataset.a, v = el.dataset.v, P = UI.panel;
@@ -885,7 +900,7 @@ function setupInput() {
     const p = PTR.get(e.pointerId); if (!p) return;
     PTR.delete(e.pointerId);
     if (PTR.size < 2) pinch = null;
-    if (PTR.size === 0 && !dragMoved && downAt && performance.now() - downAt.t < 600 && UI.inGame && !UI.paused) onWorldTap(e.clientX, e.clientY);
+    if (PTR.size === 0 && !dragMoved && downAt && performance.now() - downAt.t < 600 && UI.inGame && !UI.paused) { worldTapAt = performance.now(); onWorldTap(e.clientX, e.clientY); }
     if (PTR.size === 0 && dragMoved && !paintDrag) FX.fling();
     if (PTR.size === 0) { downAt = null; paintDrag = false; }
   };
@@ -894,11 +909,12 @@ function setupInput() {
   cv.addEventListener('wheel', e => {
     e.preventDefault();
     const before = R.screenToWorld(e.clientX, e.clientY);
-    R.cam.z *= Math.pow(1.0015, -e.deltaY); R.clampCam();
+    R.cam.z *= Math.pow(1.0015, -e.deltaY * (e.ctrlKey ? 6 : 1)); R.clampCam();          // ctrl: a pinch on a trackpad
     const after = R.screenToWorld(e.clientX, e.clientY);
     R.cam.x += before.x - after.x; R.cam.y += before.y - after.y; R.clampCam();
   }, { passive: false });
-  document.addEventListener('pointerdown', () => AUDIO.unlock(), { capture: true });
+  // Sound may only start from a finished tap, click or key press (iOS does not count the press itself).
+  for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) document.addEventListener(ev, () => AUDIO.unlock(), { capture: true });
   window.addEventListener('keydown', e => { if (e.key === 'Escape') handleBack(); });
 }
 
@@ -995,6 +1011,13 @@ function buildTitleMenu() {
     else if (a === 'quit') AndroidBridge.exitApp();
   };
   $('logoMeeples').innerHTML = ['carrot', 'wheat', 'strawberry', 'blueberry', 'pumpkin'].map(c => `<img src="${meepleURL(CROP[c].meeple.col, c)}">`).join('');
+  // in Safari on an iPad or iPhone, say how to put the game on the home screen
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let tip = $('installTip');
+  if (ios && !navigator.standalone && location.protocol === 'https:') {
+    if (!tip) { tip = document.createElement('div'); tip.id = 'installTip'; tip.className = 'install'; $('title').appendChild(tip); }
+    tip.textContent = 'To install: tap Share, then “Add to Home Screen”. It then opens full screen and works offline.';
+  } else if (tip) tip.remove();
 }
 function openPause() {
   UI.paused = true;
@@ -1016,6 +1039,8 @@ function openSettings(fromPause) {
   const tg = (k, l, opts) => `<div class="setrow"><span>${l}</span><div class="toggle">${opts.map(([v, t]) => `<button class="${SET[k] === v ? 'on' : ''}" data-a="set" data-v="${k}|${esc(JSON.stringify(v))}">${t}</button>`).join('')}</div></div>`;
   const m = modal(`<h2>${iconImg('gear')} Settings</h2><div style="text-align:left">
     <div class="sec">Audio</div>${sl('master', 'Master')}${sl('music', 'Music')}${sl('sfx', 'Effects')}${sl('amb', 'Ambience')}
+    <div class="setrow"><span>Sound check</span><div class="toggle"><button data-a="testsound">Play test sound</button></div></div>
+    <p class="s" id="sndState">${esc(AUDIO.status())}</p>
     <div class="sec">Graphics</div>
     ${tg('quality', 'Quality', [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']])}
     ${tg('fps', 'Frame rate', [[30, '30'], [60, '60'], [0, 'Max']])}
@@ -1032,12 +1057,17 @@ function openSettings(fromPause) {
     </div><div class="btns"><button class="btn" data-a="reset">Reset defaults</button><button class="btn green" data-a="done">Done</button></div>`, (a, v) => {
     if (a === 'set') {
       const [k, raw] = v.split('|'); const val = JSON.parse(raw);
-      const oldQ = SET.quality; SET[k] = val; saveSettings(); applySettings();
+      const oldQ = SET.quality; SET[k] = val; if (k === 'quality') SET.qualityAuto = false; saveSettings(); applySettings();
       if (k === 'quality' && val !== oldQ) { R.setQuality(val); for (const kk in bURL) delete bURL[kk]; for (const kk in mURL) delete mURL[kk]; }
       openSettings(fromPause);
     } else if (a === 'reset') {
       const ls = SET.lastSlot; SET = Object.assign({}, SET_DEFAULT, { lastSlot: ls }); saveSettings(); applySettings(); R.setQuality(SET.quality); openSettings(fromPause);
     } else if (a === 'done') { if (fromPause) openPause(); else closeModal(); }
+    else if (a === 'testsound') {
+      AUDIO.unlock();
+      // the device takes a moment to let the sound through after the tap
+      setTimeout(() => { AUDIO.test(); const el = $('sndState'); if (el) el.textContent = AUDIO.status(); }, 250);
+    }
   }, () => { saveSettings(); if (fromPause) openPause(); else closeModal(); });
   m.oninput = e => { const k = e.target.dataset.k; if (k) { SET[k] = +e.target.value; applySettings(); } };
   m.onchange = e => { if (e.target.dataset.k) { saveSettings(); AUDIO.sfx('pop'); } };
